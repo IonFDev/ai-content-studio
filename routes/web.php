@@ -1,0 +1,22 @@
+<?php
+use App\Http\Controllers\CharacterController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ProjectActionController;
+use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\SettingsController;
+use Illuminate\Support\Facades\Route;
+Route::get('/', DashboardController::class)->name('dashboard');
+Route::resource('projects', ProjectController::class);
+Route::post('/projects/{project}/transcribe', [ProjectActionController::class,'transcribe'])->name('projects.transcribe');
+Route::post('/projects/{project}/generate-content', [ProjectActionController::class,'generateContent'])->name('projects.generate-content');
+Route::post('/projects/{project}/generate-storyboard', [ProjectActionController::class,'generateStoryboard'])->name('projects.generate-storyboard');
+Route::post('/projects/{project}/generate-images', [ProjectActionController::class,'generateAllImages'])->name('projects.generate-images');
+Route::post('/projects/{project}/scenes/{scene}/generate-image', [ProjectActionController::class,'generateImage'])->name('projects.scenes.generate-image');
+Route::post('/projects/{project}/transcript', [ProjectActionController::class,'saveTranscript'])->name('projects.transcript.save');
+Route::post('/projects/{project}/script', [ProjectActionController::class,'saveScript'])->name('projects.script.save');
+Route::post('/projects/{project}/youtube', [ProjectActionController::class,'updateYoutube'])->name('projects.youtube.update');
+Route::post('/projects/{project}/reorder-scenes', [ProjectActionController::class,'reorder'])->name('projects.scenes.reorder');
+Route::get('/projects/{project}/scenes/{scene}/image', [ProjectActionController::class,'image'])->name('projects.scenes.image');
+Route::resource('characters', CharacterController::class)->except('show');
+Route::get('/characters/{character}/image/{type}', [CharacterController::class,'image'])->name('characters.image');
+Route::get('/settings', [SettingsController::class,'index'])->name('settings');
