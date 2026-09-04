@@ -16,5 +16,31 @@ class StoryboardService {
   });
   return $project->refresh();
  }
- public function reorder(Project $project,array $orders): void { DB::transaction(function() use($project,$orders){ foreach($orders as $index=>$sceneId){ $project->scenes()->whereKey($sceneId)->update(['order'=>$index+1]); } }); }
+ public function reorder(Project $project, array $orders): void
+    {
+        DB::transaction(function () use ($project, $orders) {
+            $scenes = $project->scenes()
+                ->whereIn('id', $orders)
+                ->get()
+                ->keyBy('id');
+
+            if ($scenes->count() !== count($orders)) {
+                throw new \RuntimeException(
+                    'Una o más escenas no pertenecen a este proyecto.'
+                );
+            }
+
+            foreach ($scenes as $scene) {
+                $scene->update([
+                    'order' => $scene->order + 1000000,
+                ]);
+            }
+
+            foreach ($orders as $index => $sceneId) {
+                $scenes[$sceneId]->update([
+                    'order' => $index + 1,
+                ]);
+            }
+        });
+    }
 }

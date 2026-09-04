@@ -21,6 +21,23 @@ class ProjectActionController extends Controller {
  public function saveTranscript(Request $request, Project $project): RedirectResponse { $data=$request->validate(['transcript'=>['required','string']]); $project->update($data+['status'=>'transcript_ready']); return back()->with('success','Transcripción guardada.'); }
  public function saveScript(Request $request, Project $project): RedirectResponse { $data=$request->validate(['script'=>['required','string']]); $project->update($data+['status'=>'script_ready']); return back()->with('success','Guion guardado.'); }
  public function image(Project $project, Scene $scene) { abort_unless($scene->project_id===$project->id && $scene->image_path && Storage::disk('local')->exists($scene->image_path),404); return response()->file(Storage::disk('local')->path($scene->image_path)); }
- public function reorder(Request $request, Project $project, StoryboardService $service): RedirectResponse { $data=$request->validate(['orders'=>['required','array'],'orders.*'=>['integer','exists:scenes,id']]); $service->reorder($project,$data['orders']); return back()->with('success','Orden de escenas actualizado.'); }
- private function splitList(string $value): array { return array_values(array_filter(array_map(fn($item)=>trim($item),preg_split('/[,\\n]+/',$value)))); }
+ public function reorder(
+    Request $request,
+    Project $project,
+    StoryboardService $service
+): RedirectResponse {
+    $data = $request->validate([
+        'orders' => ['required', 'array'],
+        'orders.*' => ['integer'],
+    ]);
+
+    $service->reorder($project, $data['orders']);
+
+    return redirect()
+        ->route('projects.show', [
+            'project' => $project,
+            'tab' => 'storyboard',
+        ])
+        ->with('success', 'Orden de escenas actualizado.');
+}private function splitList(string $value): array { return array_values(array_filter(array_map(fn($item)=>trim($item),preg_split('/[,\\n]+/',$value)))); }
 }
