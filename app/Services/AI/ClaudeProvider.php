@@ -4,6 +4,7 @@ namespace App\Services\AI;
 
 use App\Contracts\AI\AIProvider;
 use App\Models\Project;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -19,7 +20,7 @@ class ClaudeProvider implements AIProvider
         $model = config('youtube_studio.anthropic.model');
         $timeout = (int) config(
             'youtube_studio.anthropic.timeout',
-            300
+            600
         );
 
         if (blank($apiKey)) {
@@ -36,63 +37,76 @@ class ClaudeProvider implements AIProvider
             );
         }
 
-        $response = Http::timeout($timeout)
-            ->acceptJson()
-            ->withHeaders([
-                'x-api-key' => $apiKey,
-                'anthropic-version' => '2023-06-01',
+        $payload = [
+            'model' => $model,
+
+            /*
+             * La respuesta puede ser grande:
+             * guion + 40-60 escenas + prompts de imagen.
+             */
+            'max_tokens' => 20000,
+
+            'system' => $this->buildSystemPrompt(),
+
+            'messages' => [
+                [
+                    'role' => 'user',
+                    'content' => $this->buildUserPrompt(
+                        $project,
+                        $transcript
+                    ),
+                ],
+            ],
+
+            'output_config' => [
+                'format' => [
+                    'type' => 'json_schema',
+                    'schema' => $this->getOutputSchema(),
+                ],
+            ],
+
+            /*
+             * La diferencia principal respecto a la versión anterior.
+             *
+             * Anthropic enviará la respuesta mediante SSE.
+             */
+            'stream' => true,
+        ];
+
+        try {
+            $response = Http::withOptions([
+                /*
+                 * Evita que cURL/PHP intente interpretar la respuesta
+                 * SSE como una respuesta JSON convencional.
+                 */
+                'stream' => true,
+            
             ])
-            ->post(self::API_URL, [
-                'model' => $model,
-                'max_tokens' => 20000,
-
-                'system' => $this->buildSystemPrompt(),
-
-                'messages' => [
-                    [
-                        'role' => 'user',
-                        'content' => $this->buildUserPrompt(
-                            $project,
-                            $transcript
-                        ),
-                    ],
-                ],
-
-                'output_config' => [
-                    'format' => [
-                        'type' => 'json_schema',
-                        'schema' => $this->getOutputSchema(),
-                    ],
-                ],
-            ]);
+                ->timeout($timeout)
+                ->withHeaders([
+                    'x-api-key' => $apiKey,
+                    'anthropic-version' => '2023-06-01',
+                    'accept' => 'text/event-stream',
+                    'content-type' => 'application/json',
+                ])
+                ->post(self::API_URL, $payload);
+        } catch (ConnectionException $exception) {
+            throw new RuntimeException(
+                'No se pudo establecer o mantener la conexión con '
+                . 'Anthropic: ' . $exception->getMessage(),
+                0,
+                $exception
+            );
+        }
 
         if ($response->failed()) {
             $this->throwApiException($response);
         }
 
-        $stopReason = $response->json('stop_reason');
-
-        if ($stopReason !== 'end_turn') {
-            throw new RuntimeException(
-                'Claude no terminó correctamente la generación. '
-                . 'Motivo: ' . ($stopReason ?? 'desconocido')
-            );
-        }
-
-        $content = $response->json('content');
-
-        if (!is_array($content)) {
-            throw new RuntimeException(
-                'Claude no ha devuelto contenido válido.'
-            );
-        }
-
-        $text = collect($content)
-            ->where('type', 'text')
-            ->pluck('text')
-            ->implode("\n");
-
-        $text = trim($text);
+        /*
+         * Leemos el stream SSE y reconstruimos el texto JSON.
+         */
+        $text = $this->consumeStream($response);
 
         if ($text === '') {
             throw new RuntimeException(
@@ -100,12 +114,23 @@ class ClaudeProvider implements AIProvider
             );
         }
 
-        $data = json_decode(
-            $text,
-            true,
-            512,
-            JSON_THROW_ON_ERROR
-        );
+        try {
+            $data = json_decode(
+                $text,
+                true,
+                512,
+                JSON_THROW_ON_ERROR
+            );
+        } catch (\JsonException $exception) {
+            throw new RuntimeException(
+                'Claude ha devuelto contenido que no es JSON válido: '
+                . $exception->getMessage()
+                . "\n\nRespuesta recibida:\n"
+                . mb_substr($text, 0, 2000),
+                0,
+                $exception
+            );
+        }
 
         if (!is_array($data)) {
             throw new RuntimeException(
@@ -116,6 +141,171 @@ class ClaudeProvider implements AIProvider
         $this->validateResponse($data);
 
         return $data;
+    }
+
+    /**
+     * Consume la respuesta SSE de Anthropic.
+     *
+     * Anthropic envía eventos como:
+     *
+     * event: message_start
+     * data: {...}
+     *
+     * event: content_block_delta
+     * data: {
+     *     "type": "content_block_delta",
+     *     "delta": {
+     *         "type": "text_delta",
+     *         "text": "..."
+     *     }
+     * }
+     *
+     * Aquí únicamente nos interesa reconstruir los text_delta.
+     */
+    private function consumeStream($response): string
+    {
+        $body = $response->toPsrResponse()->getBody();
+
+        $text = '';
+        $buffer = '';
+
+        while (!$body->eof()) {
+            $chunk = $body->read(8192);
+
+            if ($chunk === '') {
+                continue;
+            }
+
+            $buffer .= $chunk;
+
+            /*
+             * SSE separa los eventos mediante una línea vacía.
+             */
+            while (($separatorPosition = strpos($buffer, "\n\n")) !== false) {
+                $event = substr(
+                    $buffer,
+                    0,
+                    $separatorPosition
+                );
+
+                $buffer = substr(
+                    $buffer,
+                    $separatorPosition + 2
+                );
+
+                $delta = $this->parseSseEvent($event);
+
+                if ($delta !== null) {
+                    $text .= $delta;
+                }
+            }
+        }
+
+        /*
+         * Procesamos un posible último evento que no terminase
+         * exactamente con "\n\n".
+         */
+        if (trim($buffer) !== '') {
+            $delta = $this->parseSseEvent($buffer);
+
+            if ($delta !== null) {
+                $text .= $delta;
+            }
+        }
+
+        return trim($text);
+    }
+
+    /**
+     * Procesa un evento SSE individual.
+     */
+    private function parseSseEvent(string $event): ?string
+    {
+        $event = trim($event);
+
+        if ($event === '') {
+            return null;
+        }
+
+        $eventType = null;
+        $dataLines = [];
+
+        foreach (preg_split('/\r?\n/', $event) as $line) {
+            $line = trim($line);
+
+            if ($line === '') {
+                continue;
+            }
+
+            if (str_starts_with($line, 'event:')) {
+                $eventType = trim(
+                    substr($line, strlen('event:'))
+                );
+
+                continue;
+            }
+
+            if (str_starts_with($line, 'data:')) {
+                $dataLines[] = trim(
+                    substr($line, strlen('data:'))
+                );
+            }
+        }
+
+        if ($dataLines === []) {
+            return null;
+        }
+
+        $data = implode("\n", $dataLines);
+
+        if ($data === '[DONE]') {
+            return null;
+        }
+
+        try {
+            $payload = json_decode(
+                $data,
+                true,
+                512,
+                JSON_THROW_ON_ERROR
+            );
+        } catch (\JsonException) {
+            /*
+             * Un evento SSE malformado no debe provocar que intentemos
+             * interpretar basura como parte del JSON final.
+             */
+            return null;
+        }
+
+        /*
+         * Error enviado dentro del stream.
+         */
+        if (($payload['type'] ?? null) === 'error') {
+            $errorMessage = $payload['error']['message']
+                ?? 'Error desconocido durante el streaming de Anthropic.';
+
+            throw new RuntimeException(
+                'Anthropic API streaming error: '
+                . $errorMessage
+            );
+        }
+
+        /*
+         * Solo acumulamos deltas de texto.
+         */
+        if (
+            ($payload['type'] ?? null) !== 'content_block_delta'
+        ) {
+            return null;
+        }
+
+        if (
+            ($payload['delta']['type'] ?? null) !== 'text_delta'
+        ) {
+            return null;
+        }
+
+        return (string) ($payload['delta']['text'] ?? '');
     }
 
     private function buildSystemPrompt(): string
@@ -684,8 +874,6 @@ PROMPT;
                             'items' => [
                                 'type' => 'string',
                             ],
-                            'minItems' => 3,
-                            'maxItems' => 3,
                         ],
                         'description' => [
                             'type' => 'string',
@@ -770,7 +958,6 @@ PROMPT;
 
                 'scenes' => [
                     'type' => 'array',
-                    'minItems' => 1,
                     'items' => [
                         'type' => 'object',
                         'additionalProperties' => false,
@@ -954,6 +1141,12 @@ PROMPT;
         }
 
         foreach ($data['scenes'] as $index => $scene) {
+            if (!is_array($scene)) {
+                throw new RuntimeException(
+                    "La escena {$index} no es un objeto válido."
+                );
+            }
+
             foreach (
                 [
                     'id',
@@ -977,7 +1170,16 @@ PROMPT;
             }
         }
 
-        $script = trim((string) $data['content']['script']);
+        if (
+            !isset($data['content']['script']) ||
+            !is_string($data['content']['script'])
+        ) {
+            throw new RuntimeException(
+                'Claude no ha generado un guion válido.'
+            );
+        }
+
+        $script = trim($data['content']['script']);
 
         if ($script === '') {
             throw new RuntimeException(
