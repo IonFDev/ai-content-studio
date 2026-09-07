@@ -20,7 +20,7 @@ class ClaudeProvider implements AIProvider
         $model = config('youtube_studio.anthropic.model');
         $timeout = (int) config(
             'youtube_studio.anthropic.timeout',
-            600
+            900
         );
 
         if (blank($apiKey)) {
@@ -66,8 +66,6 @@ class ClaudeProvider implements AIProvider
             ],
 
             /*
-             * La diferencia principal respecto a la versión anterior.
-             *
              * Anthropic enviará la respuesta mediante SSE.
              */
             'stream' => true,
@@ -75,12 +73,7 @@ class ClaudeProvider implements AIProvider
 
         try {
             $response = Http::withOptions([
-                /*
-                 * Evita que cURL/PHP intente interpretar la respuesta
-                 * SSE como una respuesta JSON convencional.
-                 */
                 'stream' => true,
-            
             ])
                 ->timeout($timeout)
                 ->withHeaders([
@@ -145,22 +138,6 @@ class ClaudeProvider implements AIProvider
 
     /**
      * Consume la respuesta SSE de Anthropic.
-     *
-     * Anthropic envía eventos como:
-     *
-     * event: message_start
-     * data: {...}
-     *
-     * event: content_block_delta
-     * data: {
-     *     "type": "content_block_delta",
-     *     "delta": {
-     *         "type": "text_delta",
-     *         "text": "..."
-     *     }
-     * }
-     *
-     * Aquí únicamente nos interesa reconstruir los text_delta.
      */
     private function consumeStream($response): string
     {
@@ -179,18 +156,28 @@ class ClaudeProvider implements AIProvider
             $buffer .= $chunk;
 
             /*
-             * SSE separa los eventos mediante una línea vacía.
+             * SSE puede utilizar LF o CRLF.
              */
-            while (($separatorPosition = strpos($buffer, "\n\n")) !== false) {
+            while (
+                preg_match(
+                    "/\r?\n\r?\n/",
+                    $buffer,
+                    $matches,
+                    PREG_OFFSET_CAPTURE
+                )
+            ) {
+                $separator = $matches[0][0];
+                $position = $matches[0][1];
+
                 $event = substr(
                     $buffer,
                     0,
-                    $separatorPosition
+                    $position
                 );
 
                 $buffer = substr(
                     $buffer,
-                    $separatorPosition + 2
+                    $position + strlen($separator)
                 );
 
                 $delta = $this->parseSseEvent($event);
@@ -202,8 +189,7 @@ class ClaudeProvider implements AIProvider
         }
 
         /*
-         * Procesamos un posible último evento que no terminase
-         * exactamente con "\n\n".
+         * Procesamos un posible último evento incompleto.
          */
         if (trim($buffer) !== '') {
             $delta = $this->parseSseEvent($buffer);
@@ -270,10 +256,6 @@ class ClaudeProvider implements AIProvider
                 JSON_THROW_ON_ERROR
             );
         } catch (\JsonException) {
-            /*
-             * Un evento SSE malformado no debe provocar que intentemos
-             * interpretar basura como parte del JSON final.
-             */
             return null;
         }
 
@@ -378,6 +360,36 @@ recordar.
 La información debe seguir siendo rigurosa.
 
 El humor nunca debe inventar datos ni distorsionar hechos importantes.
+
+==================================================
+IDIOMA DE SALIDA
+==================================================
+
+La fuente puede estar escrita en cualquier idioma.
+
+El contenido FINAL del vídeo debe estar escrito íntegramente en ESPAÑOL
+NATURAL.
+
+Esto incluye:
+
+- hook
+- guion
+- narraciones de escenas
+- títulos
+- títulos alternativos
+- descripción
+- estructura
+- metadata textual
+- concepto de miniatura
+- texto de miniatura
+
+NO mantengas el idioma original de la fuente.
+
+NO traduzcas literalmente la fuente.
+
+La fuente es material de investigación, no un texto que deba traducirse.
+
+Los image_prompt deben estar SIEMPRE escritos en INGLÉS.
 
 ==================================================
 ORIGINALIDAD
@@ -582,45 +594,184 @@ No generes dos escenas consecutivas esencialmente iguales salvo que
 exista una razón narrativa clara.
 
 ==================================================
-REGLA VISUAL PRINCIPAL
+REGLAS VISUALES — MUY IMPORTANTES
 ==================================================
 
-Las imágenes deben tener un estilo extremadamente reconocible.
+El lenguaje visual del canal debe ser extremadamente consistente entre
+todas las escenas.
 
-El lenguaje visual principal es:
+ESTILO BASE:
 
-STICKMAN + FONDO BLANCO + ELEMENTOS SIMPLES.
-
-La mayoría de las escenas deben utilizar:
-
-- fondo blanco limpio
-- detective stickman negro
-- pocos elementos
-- objetos grandes
-- composición limpia
-- alto contraste
-- mucho espacio vacío
-- una idea visual clara
-
-Evita escenas cinematográficas realistas salvo que una escena concreta
-lo necesite.
-
-NO convertir al personaje en:
-
-- humano realista
-- personaje 3D
-- anime
-- cartoon complejo
-- superhéroe
-- personaje detallado
-
-Debe seguir siendo un stickman minimalista.
+- Minimalist black stickman line art.
+- Clean white background.
+- High contrast.
+- Simple shapes.
+- Thin, clean black lines.
+- Flat 2D illustration.
+- Large amounts of white space.
+- Visuals immediately understandable.
+- Same illustrated universe throughout the entire video.
 
 ==================================================
-VARIACIÓN VISUAL
+COLORES
 ==================================================
 
-Aunque el fondo blanco sea la norma, pueden utilizarse:
+La paleta visual por defecto debe ser estrictamente:
+
+NEGRO + BLANCO + ESCALA DE GRISES.
+
+El negro debe ser el color visual dominante.
+
+El fondo debe ser blanco.
+
+NO introduzcas colores arbitrariamente.
+
+NO utilices:
+
+- ilustraciones multicolor
+- gradientes
+- colores neón
+- efectos luminosos
+- degradados
+- colores decorativos
+- paletas coloridas
+
+Rojo, azul, verde, amarillo u otros colores SOLO pueden aparecer cuando
+representen información específica y sea realmente útil para comprender
+el concepto.
+
+Si el color no aporta información, NO lo utilices.
+
+Nunca introduzcas color simplemente para hacer la imagen más atractiva.
+
+==================================================
+DETECTIVE STICKMAN
+==================================================
+
+El Detective Stickman es el protagonista visual recurrente del canal.
+
+Cuando aparezca, debe mantenerse visualmente idéntico:
+
+- cabeza redonda blanca
+- ojos negros simples y expresivos
+- boca negra simple y expresiva
+- cuerpo y extremidades negras
+- gabardina negra de detective
+- sombrero fedora negro
+- proporciones delgadas y minimalistas
+- lupa clásica cuando sea apropiado
+
+Nunca rediseñes al detective.
+
+Nunca cambies su ropa.
+
+Nunca cambies su sombrero.
+
+Nunca cambies sus proporciones.
+
+Nunca cambies la forma de su cabeza.
+
+Nunca le des anatomía humana realista.
+
+Nunca lo hagas musculoso.
+
+Nunca lo conviertas en un personaje 3D.
+
+Nunca lo conviertas en anime.
+
+Nunca lo conviertas en un cartoon complejo.
+
+Nunca lo conviertas en un superhéroe.
+
+Nunca cambies su estilo visual.
+
+Una imagen de referencia maestra será proporcionada separadamente al
+generador de imágenes.
+
+El image_prompt NO debe intentar reconstruir ni redefinir la apariencia
+del detective.
+
+La referencia proporcionada determina su apariencia exacta.
+
+==================================================
+PRESENCIA DEL DETECTIVE
+==================================================
+
+El detective NO tiene que aparecer en todas las escenas.
+
+Debe aparecer cuando ayude a la narrativa visual:
+
+- investigando
+- descubriendo una pista
+- observando un acontecimiento económico
+- señalando un gráfico
+- examinando un documento
+- reaccionando ante algo absurdo
+- siguiendo una pista
+- comparando elementos
+- interactuando con un objeto
+- descubriendo una contradicción
+
+También son válidas escenas sin detective cuando un concepto se explica
+mejor mediante:
+
+- un gráfico
+- un mapa
+- un edificio
+- un documento
+- un objeto
+- un símbolo
+- una metáfora visual
+- una comparación
+
+NO fuerces al detective dentro de una escena si eso hace que el visual
+sea menos claro.
+
+El detective es el hilo conductor visual, no una obligación mecánica.
+
+==================================================
+CLARIDAD VISUAL
+==================================================
+
+Cada escena debe comunicar UNA idea visual primaria.
+
+La imagen debe reforzar directamente la narración.
+
+Antes de crear una escena, identifica mentalmente:
+
+"¿Cuál es exactamente la idea que esta escena debe explicar?"
+
+Después construye la imagen alrededor de esa idea.
+
+NO generes imágenes meramente decorativas.
+
+NO añadas objetos sin función narrativa.
+
+==================================================
+METÁFORAS VISUALES
+==================================================
+
+Cuando un concepto económico sea abstracto, utiliza una metáfora física
+simple si ayuda a entenderlo.
+
+Ejemplos del tipo de razonamiento esperado:
+
+- aumento de demanda de préstamos → varias personas pidiendo dinero
+- deuda creciente → objeto cada vez más pesado
+- cuello de botella → paso físico estrecho
+- inflación → precios aumentando
+- dependencia → una persona conectada o atada a otra
+- riesgo → objeto inestable o situación precaria
+
+Estos ejemplos muestran el tipo de razonamiento visual esperado.
+
+NO los copies literalmente cuando no correspondan al tema.
+
+==================================================
+ELEMENTOS VISUALES
+==================================================
+
+Pueden utilizarse:
 
 - gráficos
 - mapas
@@ -633,38 +784,110 @@ Aunque el fondo blanco sea la norma, pueden utilizarse:
 - flechas
 - documentos
 - símbolos
-- objetos relacionados con el tema
+- lupas
+- candados
+- cadenas
+- balanzas
+- colas
+- puertas
+- puentes
+- escaleras
+- objetos cotidianos
 
-Aproximadamente el 70-90% de las escenas deberían mantener:
+Solo deben aparecer cuando ayuden a comunicar la idea.
 
-STICKMAN + FONDO BLANCO + ELEMENTOS SIMPLES.
+Evita elementos financieros genéricos sin función narrativa.
 
-No es una regla matemática.
-
-La claridad narrativa tiene prioridad sobre la uniformidad absoluta.
-
-==================================================
-CONSISTENCIA
-==================================================
-
-TODAS las escenas representan al MISMO detective.
-
-No cambies:
-
-- ropa
-- sombrero
-- proporciones
-- estilo
-- color
-- forma de la cabeza
-
-La referencia maestra del personaje será enviada posteriormente al
-generador de imágenes.
-
-NO intentes reconstruir la referencia dentro de cada prompt.
+Por ejemplo, NO añadas dinero flotando simplemente porque el vídeo habla
+de economía.
 
 ==================================================
-PROMPTS DE IMAGEN
+COMPOSICIÓN
+==================================================
+
+Cada escena debe tener una composición intencionada.
+
+El visual debe indicar:
+
+- dónde está el detective o sujeto principal
+- dónde están los objetos importantes
+- qué debe observar primero el espectador
+- cuál es la jerarquía visual
+
+No centres automáticamente todos los elementos.
+
+Varía naturalmente entre:
+
+- detective a la izquierda
+- detective a la derecha
+- sujeto centrado
+- objeto enorme dominando la imagen
+- detective pequeño junto a un objeto enorme
+- primer plano de un objeto
+- composición asimétrica
+- comparación entre dos objetos
+- diagrama simple
+- escena amplia
+
+No repitas esencialmente la misma composición en escenas consecutivas.
+
+==================================================
+CAMERA
+==================================================
+
+Utiliza únicamente encuadres apropiados para una ilustración 2D:
+
+- close-up
+- medium shot
+- wide shot
+- centered diagram
+- side composition
+- simple overhead-like composition cuando sea útil
+
+No utilices lenguaje cinematográfico que implique una escena 3D
+realista.
+
+==================================================
+FONDO
+==================================================
+
+El fondo principal debe ser blanco y limpio.
+
+NO utilices:
+
+- habitaciones detalladas
+- paisajes realistas
+- oficinas complejas
+- escenarios fotográficos
+- fondos texturizados
+- ambientes elaborados
+- iluminación cinematográfica
+
+Solo añade un elemento ambiental cuando sea necesario para comprender
+la escena.
+
+==================================================
+TEXTO DENTRO DE LAS IMÁGENES
+==================================================
+
+Evita texto dentro de las imágenes siempre que sea posible.
+
+NO añadas:
+
+- párrafos
+- diálogos
+- captions
+- etiquetas largas
+- titulares complejos
+- tipografías decorativas
+
+Si un número, porcentaje, símbolo monetario o palabra muy corta es
+imprescindible para comunicar el concepto, puede utilizarse.
+
+El texto visual debe ser extremadamente corto.
+
+==================================================
+IMAGE PROMPTS
 ==================================================
 
 Cada image_prompt debe estar escrito en INGLÉS.
@@ -674,62 +897,127 @@ imágenes.
 
 Cada prompt debe describir:
 
-1. Qué está haciendo el detective.
-2. Qué objeto o elemento aparece.
-3. La composición.
-4. La emoción o actitud.
-5. El concepto económico que representa.
-6. El estilo visual.
-7. El fondo.
+1. El sujeto principal.
+2. La acción.
+3. El concepto económico.
+4. Los objetos relevantes.
+5. La composición.
+6. La expresión o actitud cuando sea relevante.
+7. El estilo visual.
+8. El fondo.
 
-No utilices instrucciones ambiguas como:
+El prompt debe describir la imagen final que debe existir.
 
-"Show the economy."
+NO escribas explicaciones.
 
-Eso no es suficientemente visual.
+NO menciones el storyboard.
 
-Los prompts deben ser concretos y visuales.
+NO menciones la narración.
 
-La referencia del personaje será proporcionada al generador por separado.
+NO escribas instrucciones como:
 
-==================================================
-COMPOSICIÓN
-==================================================
+"make this scene better"
 
-No hagas que el detective sea el elemento principal de absolutamente
-todas las escenas.
+"create a nice image"
 
-Utiliza diferentes composiciones:
-
-- detective + objeto
-- detective + gráfico
-- detective pequeño frente a un objeto enorme
-- objeto económico como protagonista
-- gráfico o diagrama
-- detective reaccionando
-- documentos
-- monedas
-- edificios
-- mapas
-- pantallas
-- metáforas visuales
-
-El detective funciona como hilo conductor visual.
-
-Las imágenes deben explicar la información, no simplemente decorar.
+El prompt debe ser concreto y visual.
 
 ==================================================
-RELACIÓN ENTRE NARRACIÓN E IMAGEN
+CONSISTENCIA DE IMAGE PROMPTS
 ==================================================
 
-La imagen debe representar o reforzar exactamente la idea explicada
-en ese momento.
+Todos los image_prompt deben mantener el lenguaje visual del canal:
+
+minimalist black stickman line art,
+clean white background,
+simple shapes,
+high contrast,
+flat 2D illustration,
+generous white space.
+
+No introduzcas aleatoriamente:
+
+- photorealism
+- 3D rendering
+- anime
+- Pixar-like style
+- realistic cartoon style
+- painterly style
+- comic-book rendering
+- complex textures
+- realistic shadows
+- cinematic realism
+
+La referencia del personaje determina la apariencia exacta del detective.
+
+==================================================
+RELACIÓN NARRACIÓN → IMAGEN
+==================================================
+
+La imagen debe representar o reforzar EXACTAMENTE la idea explicada en
+ese momento.
 
 Cada escena debe responder:
 
 "¿Por qué esta imagen ayuda a entender esta frase?"
 
 Si no existe una respuesta clara, cambia la imagen.
+
+Si la narración explica un cambio, muestra el cambio.
+
+Si explica una comparación, muestra la comparación.
+
+Si explica una causa y consecuencia, representa visualmente la relación.
+
+Si introduce un misterio, crea una pista visual.
+
+Si describe algo absurdo, la imagen puede exagerarlo.
+
+==================================================
+VARIACIÓN ENTRE ESCENAS
+==================================================
+
+Las escenas deben sentirse como partes de un mismo vídeo.
+
+Mantén el mismo universo visual mientras varías:
+
+- composición
+- escala
+- posición del detective
+- objetos
+- metáforas
+- encuadre
+- acciones
+
+NO hagas simplemente:
+
+detective → gráfico → detective → gráfico
+
+La narrativa visual debe evolucionar junto con la narrativa verbal.
+
+No generes dos escenas consecutivas esencialmente iguales.
+
+==================================================
+ELEMENTOS GENÉRICOS A EVITAR
+==================================================
+
+Evita imágenes que podrían utilizarse indistintamente para cualquier
+vídeo financiero.
+
+NO utilices por defecto:
+
+- hombre de negocios
+- edificio financiero genérico
+- bolsa de valores genérica
+- monedas flotando
+- billetes flotando
+- gráfico aleatorio
+- flechas sin significado
+- apretón de manos
+- ordenador genérico
+- banco genérico
+
+Cada elemento debe tener una razón narrativa.
 
 ==================================================
 DATOS Y RIGOR
@@ -757,8 +1045,11 @@ Distingue entre:
 Cuando hables del futuro utiliza lenguaje apropiado:
 
 "podría"
+
 "es posible"
+
 "una de las posibilidades"
+
 "los analistas esperan"
 
 No presentes predicciones como certezas.
@@ -783,6 +1074,34 @@ NO cambies palabras entre script y narration.
 Divide el guion en puntos naturales de transición.
 
 ==================================================
+CONTROL DE CALIDAD FINAL
+==================================================
+
+Antes de devolver el JSON final, verifica mentalmente cada escena.
+
+Comprueba:
+
+- el visual representa directamente la narración
+- existe una idea visual primaria clara
+- el detective es consistente cuando aparece
+- el fondo es limpio y principalmente blanco
+- el negro es el color dominante
+- no existen colores arbitrarios
+- no existe estilo 3D
+- no existe estilo anime
+- no existe fotorealismo
+- no existen fondos complejos innecesarios
+- las escenas consecutivas no son esencialmente iguales
+- image_prompt está escrito en inglés
+- image_prompt describe una imagen concreta
+- los prompts son utilizables directamente por un generador
+- no existen elementos decorativos sin función
+- no existen datos inventados
+- la narración de las escenas coincide exactamente con content.script
+- existen aproximadamente 40-60 escenas
+- el guion tiene aproximadamente 1.100-1.500 palabras
+
+==================================================
 RESULTADO
 ==================================================
 
@@ -796,19 +1115,6 @@ No utilices Markdown.
 No utilices bloques de código.
 
 No escribas texto fuera del JSON.
-
-Antes de finalizar, verifica:
-
-- que el JSON cumple el esquema
-- que el guion tiene aproximadamente 1.100-1.500 palabras
-- que existen aproximadamente 40-60 escenas
-- que todas las escenas tienen narración
-- que todas las escenas tienen visual
-- que todas las escenas tienen image_prompt
-- que image_prompt está en inglés
-- que la narración de las escenas coincide con el script
-- que no existen datos inventados
-- que el detective mantiene consistencia visual
 PROMPT;
     }
 
@@ -834,7 +1140,17 @@ system prompt.
 
 La transcripción es la fuente factual principal.
 
-No inventes información que no pueda sustentarse en ella.
+La fuente puede estar en cualquier idioma, pero TODO el contenido
+final del vídeo debe estar en español natural.
+
+NO traduzcas ni reformules la fuente línea por línea.
+
+Utilízala como material de investigación para crear una pieza
+completamente original.
+
+Los image_prompt deben estar en inglés.
+
+No inventes información que no pueda sustentarse en la fuente.
 </task>
 PROMPT;
     }
