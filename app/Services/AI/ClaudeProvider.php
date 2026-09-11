@@ -107,6 +107,8 @@ class ClaudeProvider implements AIProvider
             );
         }
 
+        $text = $this->sanitizeJsonControlCharacters($text);
+
         try {
             $data = json_decode(
                 $text,
@@ -134,6 +136,75 @@ class ClaudeProvider implements AIProvider
         $this->validateResponse($data);
 
         return $data;
+    }
+
+    private function sanitizeJsonControlCharacters(string $json): string
+    {
+        $result = '';
+        $inString = false;
+        $escaped = false;
+
+        $length = strlen($json);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $json[$i];
+
+            if ($escaped) {
+                $result .= $char;
+                $escaped = false;
+                continue;
+            }
+
+            if ($char === '\\') {
+                $result .= $char;
+                $escaped = true;
+                continue;
+            }
+
+            if ($char === '"') {
+                $result .= $char;
+                $inString = !$inString;
+                continue;
+            }
+
+            if ($inString) {
+                $ord = ord($char);
+
+                if ($ord < 0x20) {
+                    switch ($char) {
+                        case "\n":
+                            $result .= '\\n';
+                            break;
+
+                        case "\r":
+                            $result .= '\\r';
+                            break;
+
+                        case "\t":
+                            $result .= '\\t';
+                            break;
+
+                        case "\b":
+                            $result .= '\\b';
+                            break;
+
+                        case "\f":
+                            $result .= '\\f';
+                            break;
+
+                        default:
+                            $result .= sprintf('\\u%04x', $ord);
+                            break;
+                    }
+
+                    continue;
+                }
+            }
+
+            $result .= $char;
+        }
+
+        return $result;
     }
 
     /**
