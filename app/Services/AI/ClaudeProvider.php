@@ -1495,6 +1495,7 @@ PROMPT;
                             'narration',
                             'visual',
                             'image_prompt',
+                            'production',
                         ],
                         'properties' => [
                             'id' => [
@@ -1546,6 +1547,71 @@ PROMPT;
                             ],
                             'image_prompt' => [
                                 'type' => 'string',
+                            ],
+                            'production' => [
+                                'type' => 'object',
+                                'additionalProperties' => false,
+
+                                'required' => [
+                                    'manual_required',
+                                    'manual_elements',
+                                    'animation',
+                                    'notes',
+                                ],
+
+                                'properties' => [
+
+                                    'manual_required' => [
+                                        'type' => 'boolean',
+                                    ],
+
+                                    'manual_elements' => [
+                                        'type' => 'array',
+
+                                        'items' => [
+                                            'type' => 'object',
+                                            'additionalProperties' => false,
+
+                                            'required' => [
+                                                'type',
+                                                'description',
+                                                'details',
+                                                'position',
+                                            ],
+
+                                            'properties' => [
+
+                                                'type' => [
+                                                    'type' => 'string',
+                                                ],
+
+                                                'description' => [
+                                                    'type' => 'string',
+                                                ],
+
+                                                'details' => [
+                                                    'type' => 'string',
+                                                ],
+
+                                                'position' => [
+                                                    'type' => 'string',
+                                                ],
+                                            ],
+                                        ],
+                                    ],
+
+                                    'animation' => [
+                                        'type' => 'array',
+
+                                        'items' => [
+                                            'type' => 'string',
+                                        ],
+                                    ],
+
+                                    'notes' => [
+                                        'type' => 'string',
+                                    ],
+                                ],
                             ],
                         ],
                     ],
@@ -1682,6 +1748,7 @@ PROMPT;
                     'narration',
                     'visual',
                     'image_prompt',
+                    'production',
                 ] as $field
             ) {
                 if (!array_key_exists($field, $scene)) {
@@ -1694,6 +1761,52 @@ PROMPT;
             if (!is_array($scene['visual'])) {
                 throw new RuntimeException(
                     "El bloque visual de la escena {$index} no es válido."
+                );
+            }
+
+            if (!is_array($scene['production'])) {
+                throw new RuntimeException(
+                    "El bloque de producción de la escena {$index} no es válido."
+                );
+            }
+
+            $production = $scene['production'];
+
+            if (
+                !isset($production['manual_required']) ||
+                !is_bool($production['manual_required'])
+            ) {
+                throw new RuntimeException(
+                    "La escena {$index} no contiene un valor válido para "
+                    . "'production.manual_required'."
+                );
+            }
+
+            if (
+                !isset($production['manual_elements']) ||
+                !is_array($production['manual_elements'])
+            ) {
+                throw new RuntimeException(
+                    "La escena {$index} no contiene elementos manuales válidos."
+                );
+            }
+
+            if (
+                !isset($production['animation']) ||
+                !is_array($production['animation'])
+            ) {
+                throw new RuntimeException(
+                    "La escena {$index} no contiene una animación válida."
+                );
+
+            }
+
+            if (
+                !isset($production['notes']) ||
+                !is_string($production['notes'])
+            ) {
+                throw new RuntimeException(
+                    "La escena {$index} no contiene notas de producción válidas."
                 );
             }
         }
