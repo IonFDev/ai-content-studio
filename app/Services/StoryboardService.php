@@ -44,22 +44,20 @@ class StoryboardService
 
             foreach ($data['scenes'] as $index => $scene) {
                 $visual = $scene['visual'] ?? [];
+                $production = $scene['production'] ?? [];
 
                 $project->scenes()->create([
-                    'order' => (int) (
-                        $scene['order']
-                        ?? ($index + 1)
-                    ),
-
+                    'order' => (int) ($scene['order'] ?? ($index + 1)),
                     'narration' => $scene['narration'] ?? '',
-
-                    'visual_description' =>
-                        $visual['description'] ?? null,
-
-                    'image_prompt' =>
-                        $scene['image_prompt'] ?? null,
-
+                    'visual_description' => $visual['description'] ?? null,
+                    'image_prompt' => $scene['image_prompt'] ?? null,
                     'image_status' => 'pending',
+
+                    'manual_elements' => $production['manual_elements'] ?? [],
+                    'animation_notes' => $this->formatAnimationNotes(
+                        $production['animation'] ?? []
+                    ),
+                    'production_notes' => $production['notes'] ?? null,
                 ]);
             }
 
@@ -69,6 +67,26 @@ class StoryboardService
         });
 
         return $project->refresh();
+    }
+
+    private function formatAnimationNotes(array $animation): ?string
+    {
+        $animation = array_values(
+            array_filter(
+                array_map(
+                    fn ($item) => trim((string) $item),
+                    $animation
+                )
+            )
+        );
+
+        return empty($animation)
+            ? null
+            : implode("\n", array_map(
+                fn ($item, $index) => ($index + 1) . '. ' . $item,
+                $animation,
+                array_keys($animation)
+            ));
     }
 
     public function reorder(

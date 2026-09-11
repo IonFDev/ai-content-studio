@@ -887,6 +887,218 @@ imprescindible para comunicar el concepto, puede utilizarse.
 El texto visual debe ser extremadamente corto.
 
 ==================================================
+GUÍA DE PRODUCCIÓN
+==================================================
+
+Además de definir la imagen que debe generar la IA, cada escena debe
+indicar qué elementos deberán añadirse posteriormente durante la
+postproducción.
+
+La imagen generada por IA debe funcionar como el ESQUELETO VISUAL de
+la escena.
+
+La IA de imágenes NO debe encargarse de representar con precisión
+elementos que posteriormente podamos crear o editar manualmente.
+
+Esto es especialmente importante para:
+
+- gráficos
+- gráficas
+- porcentajes
+- cifras
+- tablas
+- textos
+- etiquetas
+- flechas
+- indicadores
+- comparaciones
+- timelines
+- overlays informativos
+
+Cuando uno de estos elementos sea importante para explicar la
+información, descríbelo en el bloque "production" de la escena.
+
+NO intentes resolver todos estos elementos dentro del image_prompt.
+
+El image_prompt debe centrarse principalmente en:
+
+- personajes
+- objetos
+- composición
+- metáforas visuales
+- contexto visual
+- acción
+- fondo
+- estructura general de la imagen
+
+La guía de producción se utilizará posteriormente para crear y añadir
+manualmente los elementos exactos.
+
+==================================================
+ELEMENTOS MANUALES
+==================================================
+
+Cada escena debe tener un bloque "production".
+
+"manual_required" indica si la escena necesita elementos adicionales
+durante la postproducción.
+
+"manual_elements" contiene los elementos concretos que deberían
+añadirse posteriormente.
+
+Para cada elemento indica:
+
+- type: tipo de elemento
+- description: qué debe añadirse
+- details: instrucciones concretas sobre qué debe contener
+- position: dónde debería colocarse dentro de la composición
+
+Tipos habituales:
+
+- chart
+- graph
+- text
+- number
+- percentage
+- arrow
+- label
+- highlight
+- icon
+- timeline
+- comparison
+- table
+- overlay
+
+No es obligatorio utilizar estos tipos literalmente si otro tipo
+describe mejor el elemento.
+
+==================================================
+DATOS EXACTOS
+==================================================
+
+NO inventes datos para los elementos manuales.
+
+Si la narración menciona una cifra concreta, puedes indicar que esa
+cifra debe aparecer posteriormente.
+
+Si la fuente proporciona varios valores para un gráfico, puedes
+indicar esos valores en "details".
+
+Si un dato no aparece en la fuente o no puede deducirse con seguridad,
+NO lo inventes.
+
+La guía de producción debe servir como instrucciones para la
+postproducción, no como una fuente adicional de información.
+
+==================================================
+CUÁNDO UTILIZAR ELEMENTOS MANUALES
+==================================================
+
+No todas las escenas necesitan elementos manuales.
+
+Utilízalos cuando aporten claridad real.
+
+Ejemplos:
+
+- Una cifra importante mencionada en la narración → elemento "number".
+- Una evolución temporal → elemento "chart" o "graph".
+- Una comparación entre dos magnitudes → elemento "comparison".
+- Una palabra o concepto que deba destacarse → elemento "text".
+- Una relación causal → elemento "arrow".
+- Una secuencia temporal → elemento "timeline".
+
+No añadas elementos manuales simplemente para llenar la escena.
+
+Si la imagen generada por IA comunica perfectamente la idea sin
+elementos adicionales, "manual_required" debe ser false y
+"manual_elements" debe estar vacío.
+
+==================================================
+ANIMACIÓN
+==================================================
+
+El bloque "animation" debe contener sugerencias prácticas para animar
+la escena posteriormente.
+
+Las sugerencias deben ser sencillas y realizables mediante edición 2D.
+
+Ejemplos:
+
+- El personaje entra lentamente desde la izquierda.
+- El gráfico aparece progresivamente.
+- Una cifra aumenta ligeramente de escala al aparecer.
+- Una flecha se dibuja progresivamente.
+- El elemento principal permanece estático mientras aparece un overlay.
+- La cámara realiza un zoom 2D muy ligero sobre el elemento principal.
+
+No describas animaciones 3D complejas.
+
+No utilices efectos cinematográficos innecesarios.
+
+Si no existe una animación específica relevante, utiliza una animación
+sencilla y discreta.
+
+==================================================
+NOTAS DE PRODUCCIÓN
+==================================================
+
+Utiliza "notes" para cualquier instrucción adicional que pueda ser útil
+durante la edición.
+
+Por ejemplo:
+
+- mantener una zona libre para colocar un gráfico
+- evitar cubrir al detective
+- reservar espacio para un porcentaje
+- mantener un elemento alineado con otro
+- utilizar la misma escala que una escena anterior
+
+No repitas información innecesariamente.
+
+==================================================
+ESQUELETO VISUAL + POSTPRODUCCIÓN
+==================================================
+
+Piensa en cada escena como dos capas:
+
+CAPA 1 — IMAGEN IA
+
+La imagen generada por IA proporciona:
+
+- personajes
+- objetos
+- metáforas
+- composición
+- contexto
+- estructura visual
+
+CAPA 2 — POSTPRODUCCIÓN
+
+La edición posterior proporciona:
+
+- datos exactos
+- gráficos
+- textos
+- cifras
+- porcentajes
+- flechas
+- etiquetas
+- overlays
+- animaciones
+
+El image_prompt debe diseñar la CAPA 1 teniendo en cuenta el espacio
+necesario para la CAPA 2.
+
+Por ejemplo, si una escena necesita un gráfico a la derecha, el
+image_prompt debe colocar el elemento principal a la izquierda y
+dejar espacio visual suficiente a la derecha.
+
+No generes dentro de la imagen elementos que posteriormente deban ser
+reemplazados por datos exactos.
+
+La composición debe facilitar la postproducción.
+
+==================================================
 IMAGE PROMPTS
 ==================================================
 

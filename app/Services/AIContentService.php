@@ -127,6 +127,33 @@ class AIContentService
                     "La escena {$index} contiene un visual inválido."
                 );
             }
+
+            $production = $scene['production'] ?? [];
+
+            if (!is_array($production)) {
+                throw new RuntimeException(
+                    'La producción de una escena no tiene un formato válido.'
+                );
+            }
+
+            if (
+                isset($production['manual_elements']) &&
+                !is_array($production['manual_elements'])
+            ) {
+                throw new RuntimeException(
+                    'Los elementos manuales de una escena no tienen un formato válido.'
+                );
+            }
+
+            if (
+                isset($production['animation']) &&
+                !is_array($production['animation'])
+            ) {
+                throw new RuntimeException(
+                    'La animación de una escena no tiene un formato válido.'
+                );
+            }
+
         }
     }
 }

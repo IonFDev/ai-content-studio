@@ -20,3 +20,4 @@ Route::get('/projects/{project}/scenes/{scene}/image', [ProjectActionController:
 Route::resource('characters', CharacterController::class)->except('show');
 Route::get('/characters/{character}/image/{type}', [CharacterController::class,'image'])->name('characters.image');
 Route::get('/settings', [SettingsController::class,'index'])->name('settings');
+Route::get('/projects/{project}/production-guide',[ProjectActionController::class, 'productionGuide'])->name('projects.production-guide');
