@@ -63,7 +63,7 @@ class IdeogramProvider implements ImageProvider
             ],
             [
                 'name' => 'style_type',
-                'contents' => 'GENERAL',
+                'contents' => 'AUTO',
             ],
             [
                 'name' => 'num_images',
@@ -72,14 +72,25 @@ class IdeogramProvider implements ImageProvider
         ];
 
         if ($this->sceneNeedsCharacterReference($scene)) {
-            $reference = $this->getCharacterReference();
+            $characterReference = $this->getCharacterReference();
 
             $multipart[] = [
                 'name' => 'character_reference_images',
-                'contents' => fopen($reference['path'], 'rb'),
-                'filename' => $reference['filename'],
+                'contents' => fopen($characterReference['path'], 'rb'),
+                'filename' => $characterReference['filename'],
                 'headers' => [
-                    'Content-Type' => $reference['mime'],
+                    'Content-Type' => $characterReference['mime'],
+                ],
+            ];
+
+            $styleReference = $this->getStyleReference();
+
+            $multipart[] = [
+                'name' => 'style_reference_images',
+                'contents' => fopen($styleReference['path'], 'rb'),
+                'filename' => $styleReference['filename'],
+                'headers' => [
+                    'Content-Type' => $styleReference['mime'],
                 ],
             ];
         }
@@ -197,6 +208,45 @@ class IdeogramProvider implements ImageProvider
         ], true)) {
             throw new RuntimeException(
                 'La referencia del personaje debe ser PNG, JPEG o WebP.'
+            );
+        }
+
+        return [
+            'path' => $absolutePath,
+            'filename' => basename($absolutePath),
+            'mime' => $mime,
+        ];
+    }
+
+    private function getStyleReference(): array
+    {
+        $path = config(
+            'youtube_studio.ideogram.style_reference_path'
+        );
+
+        if (!$path) {
+            throw new RuntimeException(
+                'No se ha configurado la referencia de estilo del personaje.'
+            );
+        }
+
+        if (!Storage::disk('local')->exists($path)) {
+            throw new RuntimeException(
+                "No existe la referencia de estilo: {$path}"
+            );
+        }
+
+        $absolutePath = Storage::disk('local')->path($path);
+
+        $mime = mime_content_type($absolutePath);
+
+        if (!$mime || !in_array($mime, [
+            'image/png',
+            'image/jpeg',
+            'image/webp',
+        ], true)) {
+            throw new RuntimeException(
+                'La referencia de estilo debe ser PNG, JPEG o WebP.'
             );
         }
 
