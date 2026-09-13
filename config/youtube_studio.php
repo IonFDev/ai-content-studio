@@ -37,4 +37,12 @@ return [
             'characters/detective-stickman/detective-stickman-poses.png'
         ),
     ],
+
+    'flux' => [
+    'api_key' => env('BFL_API_KEY'),
+    'model' => env('BFL_MODEL', 'flux-2-pro'),
+    'timeout' => (int) env('BFL_TIMEOUT', 300),
+    'poll_interval' => (int) env('BFL_POLL_INTERVAL', 1),
+    'max_poll_attempts' => (int) env('BFL_MAX_POLL_ATTEMPTS', 120),
+    ],
 ];

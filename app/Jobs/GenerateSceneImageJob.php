@@ -2,8 +2,8 @@
 
 namespace App\Jobs;
 
-use App\Contracts\Images\ImageProvider;
 use App\Models\Scene;
+use App\Services\ImageGenerationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -27,30 +27,17 @@ class GenerateSceneImageJob implements ShouldQueue
     ) {
     }
 
-    public function handle(ImageProvider $imageProvider): void
-    {
+    public function handle(
+        ImageGenerationService $imageGenerationService
+    ): void {
         $scene = Scene::with('project')->findOrFail($this->sceneId);
 
         if ($scene->image_status === 'generated') {
             return;
         }
 
-        $scene->update([
-            'image_status' => 'generating',
-        ]);
-
         try {
-            $path = $imageProvider->generate(
-                $scene,
-                $scene->project
-            );
-
-            $scene->update([
-                'image_path' => $path,
-                'image_status' => 'generated',
-            ]);
-
-            $this->updateProjectStatus($scene);
+            $imageGenerationService->generate($scene);
         } catch (Throwable $e) {
             $scene->update([
                 'image_status' => 'error',
@@ -63,6 +50,10 @@ class GenerateSceneImageJob implements ShouldQueue
     private function updateProjectStatus(Scene $scene): void
     {
         $project = $scene->project;
+
+        if (!$project) {
+            return;
+        }
 
         $total = $project->scenes()->count();
 

@@ -2,7 +2,6 @@
 
 namespace App\Contracts\Images;
 
-use App\Models\Project;
 use App\Models\Scene;
 
 interface ImageProvider
@@ -10,7 +9,11 @@ interface ImageProvider
     /**
      * Generate the image for a scene.
      *
-     * Returns the relative storage path of the generated image.
+     * Returns the generated image contents and metadata.
      */
-    public function generate(Scene $scene, Project $project): string;
+    public function generateImage(
+        Scene $scene,
+        array $references = [],
+        array $options = []
+    ): array;
 }

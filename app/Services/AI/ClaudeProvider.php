@@ -107,7 +107,14 @@ class ClaudeProvider implements AIProvider
             );
         }
 
+        $text = trim($text);
+
         $text = $this->sanitizeJsonControlCharacters($text);
+
+        file_put_contents(
+            storage_path('logs/claude-response.txt'),
+            $text
+        );
 
         try {
             $data = json_decode(
@@ -119,11 +126,9 @@ class ClaudeProvider implements AIProvider
         } catch (\JsonException $exception) {
             throw new RuntimeException(
                 'Claude ha devuelto contenido que no es JSON válido: '
-                . $exception->getMessage()
-                . "\n\nRespuesta recibida:\n"
-                . mb_substr($text, 0, 2000),
-                0,
-                $exception
+                . $e->getMessage()
+                . ' Longitud: '
+                . strlen($responseText)
             );
         }
 

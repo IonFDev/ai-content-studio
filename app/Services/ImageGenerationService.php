@@ -28,16 +28,24 @@ class ImageGenerationService
             $references = [];
 
             if ($project->character?->reference_sheet_path) {
-                $references[] = $project->character->reference_sheet_path;
+                $references[] = $project
+                    ->character
+                    ->reference_sheet_path;
             }
 
             if ($project->character?->portrait_reference_path) {
-                $references[] = $project->character->portrait_reference_path;
+                $references[] = $project
+                    ->character
+                    ->portrait_reference_path;
             }
 
             $result = $this->provider->generateImage(
                 $scene,
-                $references
+                $references,
+                [
+                    'width' => 1536,
+                    'height' => 864,
+                ]
             );
 
             $extension = $result['extension'] ?? 'png';
@@ -49,16 +57,14 @@ class ImageGenerationService
                 $extension
             );
 
-            /*
-             * Si la escena ya tenía una imagen en otra ruta,
-             * eliminamos el archivo anterior para evitar huérfanos.
-             */
             if (
                 $scene->image_path &&
                 $scene->image_path !== $path &&
                 Storage::disk('local')->exists($scene->image_path)
             ) {
-                Storage::disk('local')->delete($scene->image_path);
+                Storage::disk('local')->delete(
+                    $scene->image_path
+                );
             }
 
             Storage::disk('local')->put(
@@ -71,10 +77,11 @@ class ImageGenerationService
                 'image_status' => 'generated',
             ]);
 
-            $this->syncProjectStatus($project->refresh());
+            $this->syncProjectStatus(
+                $project->refresh()
+            );
 
             return $scene->refresh();
-
         } catch (\Throwable $e) {
             $scene->update([
                 'image_status' => 'error',
