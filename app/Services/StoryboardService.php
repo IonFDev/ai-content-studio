@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Project;
+use App\Models\Scene;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
@@ -43,21 +44,58 @@ class StoryboardService
             $project->scenes()->delete();
 
             foreach ($data['scenes'] as $index => $scene) {
-                $visual = $scene['visual'] ?? [];
-                $production = $scene['production'] ?? [];
+                $visualDescription = trim(
+                    (string) ($scene['visual_description'] ?? '')
+                );
+
+                $characterRole = $this->normalizeCharacterRole(
+                    $scene['character_role'] ?? 'none'
+                );
+
+                $shotType = $this->normalizeShotType(
+                    $scene['camera'] ?? null
+                );
+
+                $manualElements = $scene['manual_elements'] ?? [];
+
+                if (!is_array($manualElements)) {
+                    $manualElements = [];
+                }
 
                 $project->scenes()->create([
                     'order' => (int) ($scene['order'] ?? ($index + 1)),
-                    'narration' => $scene['narration'] ?? '',
-                    'visual_description' => $visual['description'] ?? null,
-                    'image_prompt' => $scene['image_prompt'] ?? null,
+
+                    'narration' => trim(
+                        (string) ($scene['narration'] ?? '')
+                    ),
+
+                    'visual_description' => $visualDescription !== ''
+                        ? $visualDescription
+                        : null,
+
+                    'character_role' => $characterRole,
+
+                    'visual_metaphor' => $this->nullableString(
+                        $scene['visual_metaphor'] ?? null
+                    ),
+
+                    'shot_type' => $shotType,
+
+                    'image_prompt' => $this->nullableString(
+                        $scene['image_prompt'] ?? null
+                    ),
+
                     'image_status' => 'pending',
 
-                    'manual_elements' => $production['manual_elements'] ?? [],
-                    'animation_notes' => $this->formatAnimationNotes(
-                        $production['animation'] ?? []
+                    'manual_elements' => $manualElements,
+
+                    'animation_notes' => $this->nullableString(
+                        $scene['animation_notes'] ?? null
                     ),
-                    'production_notes' => $production['notes'] ?? null,
+
+                    'production_notes' => $this->nullableString(
+                        $scene['production_notes'] ?? null
+                    ),
                 ]);
             }
 
@@ -69,24 +107,45 @@ class StoryboardService
         return $project->refresh();
     }
 
-    private function formatAnimationNotes(array $animation): ?string
+    private function normalizeCharacterRole(mixed $value): string
     {
-        $animation = array_values(
-            array_filter(
-                array_map(
-                    fn ($item) => trim((string) $item),
-                    $animation
-                )
-            )
-        );
+        $value = strtolower(trim((string) $value));
 
-        return empty($animation)
-            ? null
-            : implode("\n", array_map(
-                fn ($item, $index) => ($index + 1) . '. ' . $item,
-                $animation,
-                array_keys($animation)
-            ));
+        if (!in_array($value, Scene::CHARACTER_ROLES, true)) {
+            return 'none';
+        }
+
+        return $value;
+    }
+
+    private function normalizeShotType(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = strtolower(trim((string) $value));
+
+        if ($value === '') {
+            return null;
+        }
+
+        if (in_array($value, Scene::SHOT_TYPES, true)) {
+            return $value;
+        }
+
+        return 'medium_wide';
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
     }
 
     public function reorder(

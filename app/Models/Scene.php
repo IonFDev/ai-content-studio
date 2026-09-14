@@ -17,11 +17,32 @@ class Scene extends Model
         'error',
     ];
 
+    public const CHARACTER_ROLES = [
+        'none',
+        'generic_stickmen',
+        'detective',
+        'detective_and_generic_stickmen',
+    ];
+
+    public const SHOT_TYPES = [
+        'wide_establishing',
+        'wide',
+        'medium_wide',
+        'medium',
+        'close_up',
+        'extreme_close_up',
+        'top_down',
+        'low_angle',
+    ];
+
     protected $fillable = [
         'project_id',
         'order',
         'narration',
         'visual_description',
+        'character_role',
+        'visual_metaphor',
+        'shot_type',
         'image_prompt',
         'image_path',
         'image_status',
@@ -40,5 +61,17 @@ class Scene extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    public function usesDetective(): bool
+    {
+        return in_array(
+            $this->character_role,
+            [
+                'detective',
+                'detective_and_generic_stickmen',
+            ],
+            true
+        );
     }
 }

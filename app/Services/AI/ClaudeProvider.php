@@ -6,45 +6,41 @@ use App\Contracts\AI\AIProvider;
 use App\Models\Project;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class ClaudeProvider implements AIProvider
 {
     private const API_URL = 'https://api.anthropic.com/v1/messages';
 
+    private const MODEL = 'claude-sonnet-4-6';
+
     public function generateContent(
         Project $project,
         string $transcript
     ): array {
         $apiKey = config('youtube_studio.anthropic.api_key');
-        $model = config('youtube_studio.anthropic.model');
-        $timeout = (int) config(
-            'youtube_studio.anthropic.timeout',
-            900
-        );
 
-        if (blank($apiKey)) {
+        if (!$apiKey) {
             throw new RuntimeException(
                 'ANTHROPIC_API_KEY no está configurada.'
             );
         }
 
-        $transcript = trim($transcript);
+        $model = config(
+            'youtube_studio.anthropic.model',
+            self::MODEL
+        );
 
-        if ($transcript === '') {
-            throw new RuntimeException(
-                'La transcripción está vacía.'
-            );
-        }
+        $timeout = (int) config(
+            'youtube_studio.anthropic.timeout',
+            300
+        );
 
         $payload = [
             'model' => $model,
 
-            /*
-             * La respuesta puede ser grande:
-             * guion + 40-60 escenas + prompts de imagen.
-             */
-            'max_tokens' => 20000,
+            'max_tokens' => 18000,
 
             'system' => $this->buildSystemPrompt(),
 
@@ -65,55 +61,44 @@ class ClaudeProvider implements AIProvider
                 ],
             ],
 
-            /*
-             * Anthropic enviará la respuesta mediante SSE.
-             */
             'stream' => true,
         ];
 
         try {
-            $response = Http::withOptions([
-                'stream' => true,
+            $response = Http::withHeaders([
+                'x-api-key' => $apiKey,
+                'anthropic-version' => '2023-06-01',
+                'accept' => 'text/event-stream',
+                'content-type' => 'application/json',
             ])
                 ->timeout($timeout)
-                ->withHeaders([
-                    'x-api-key' => $apiKey,
-                    'anthropic-version' => '2023-06-01',
-                    'accept' => 'text/event-stream',
-                    'content-type' => 'application/json',
+                ->withOptions([
+                    'stream' => true,
                 ])
                 ->post(self::API_URL, $payload);
         } catch (ConnectionException $exception) {
             throw new RuntimeException(
-                'No se pudo establecer o mantener la conexión con '
-                . 'Anthropic: ' . $exception->getMessage(),
+                'No se pudo conectar con Anthropic: '
+                . $exception->getMessage(),
                 0,
                 $exception
             );
         }
 
-        if ($response->failed()) {
+        if (!$response->successful()) {
             $this->throwApiException($response);
         }
 
-        /*
-         * Leemos el stream SSE y reconstruimos el texto JSON.
-         */
         $text = $this->consumeStream($response);
-
-        if ($text === '') {
-            throw new RuntimeException(
-                'Claude no ha devuelto ningún contenido.'
-            );
-        }
-
-        $text = trim($text);
 
         $text = $this->sanitizeJsonControlCharacters($text);
 
+        $logPath = storage_path('logs/claude-response.txt');
+
         file_put_contents(
-            storage_path('logs/claude-response.txt'),
-            $text
+            $logPath,
+            $text . PHP_EOL . PHP_EOL,
+            FILE_APPEND
         );
 
         try {
@@ -126,15 +111,11 @@ class ClaudeProvider implements AIProvider
         } catch (\JsonException $exception) {
             throw new RuntimeException(
                 'Claude ha devuelto contenido que no es JSON válido: '
-                . $e->getMessage()
+                . $exception->getMessage()
                 . ' Longitud: '
-                . strlen($responseText)
-            );
-        }
-
-        if (!is_array($data)) {
-            throw new RuntimeException(
-                'La respuesta de Claude no es un objeto JSON válido.'
+                . strlen($text),
+                0,
+                $exception
             );
         }
 
@@ -143,1266 +124,355 @@ class ClaudeProvider implements AIProvider
         return $data;
     }
 
-    private function sanitizeJsonControlCharacters(string $json): string
-    {
-        $result = '';
-        $inString = false;
-        $escaped = false;
-
-        $length = strlen($json);
-
-        for ($i = 0; $i < $length; $i++) {
-            $char = $json[$i];
-
-            if ($escaped) {
-                $result .= $char;
-                $escaped = false;
-                continue;
-            }
-
-            if ($char === '\\') {
-                $result .= $char;
-                $escaped = true;
-                continue;
-            }
-
-            if ($char === '"') {
-                $result .= $char;
-                $inString = !$inString;
-                continue;
-            }
-
-            if ($inString) {
-                $ord = ord($char);
-
-                if ($ord < 0x20) {
-                    switch ($char) {
-                        case "\n":
-                            $result .= '\\n';
-                            break;
-
-                        case "\r":
-                            $result .= '\\r';
-                            break;
-
-                        case "\t":
-                            $result .= '\\t';
-                            break;
-
-                        case "\b":
-                            $result .= '\\b';
-                            break;
-
-                        case "\f":
-                            $result .= '\\f';
-                            break;
-
-                        default:
-                            $result .= sprintf('\\u%04x', $ord);
-                            break;
-                    }
-
-                    continue;
-                }
-            }
-
-            $result .= $char;
-        }
-
-        return $result;
-    }
-
-    /**
-     * Consume la respuesta SSE de Anthropic.
-     */
-    private function consumeStream($response): string
-    {
-        $body = $response->toPsrResponse()->getBody();
-
-        $text = '';
-        $buffer = '';
-
-        while (!$body->eof()) {
-            $chunk = $body->read(8192);
-
-            if ($chunk === '') {
-                continue;
-            }
-
-            $buffer .= $chunk;
-
-            /*
-             * SSE puede utilizar LF o CRLF.
-             */
-            while (
-                preg_match(
-                    "/\r?\n\r?\n/",
-                    $buffer,
-                    $matches,
-                    PREG_OFFSET_CAPTURE
-                )
-            ) {
-                $separator = $matches[0][0];
-                $position = $matches[0][1];
-
-                $event = substr(
-                    $buffer,
-                    0,
-                    $position
-                );
-
-                $buffer = substr(
-                    $buffer,
-                    $position + strlen($separator)
-                );
-
-                $delta = $this->parseSseEvent($event);
-
-                if ($delta !== null) {
-                    $text .= $delta;
-                }
-            }
-        }
-
-        /*
-         * Procesamos un posible último evento incompleto.
-         */
-        if (trim($buffer) !== '') {
-            $delta = $this->parseSseEvent($buffer);
-
-            if ($delta !== null) {
-                $text .= $delta;
-            }
-        }
-
-        return trim($text);
-    }
-
-    /**
-     * Procesa un evento SSE individual.
-     */
-    private function parseSseEvent(string $event): ?string
-    {
-        $event = trim($event);
-
-        if ($event === '') {
-            return null;
-        }
-
-        $eventType = null;
-        $dataLines = [];
-
-        foreach (preg_split('/\r?\n/', $event) as $line) {
-            $line = trim($line);
-
-            if ($line === '') {
-                continue;
-            }
-
-            if (str_starts_with($line, 'event:')) {
-                $eventType = trim(
-                    substr($line, strlen('event:'))
-                );
-
-                continue;
-            }
-
-            if (str_starts_with($line, 'data:')) {
-                $dataLines[] = trim(
-                    substr($line, strlen('data:'))
-                );
-            }
-        }
-
-        if ($dataLines === []) {
-            return null;
-        }
-
-        $data = implode("\n", $dataLines);
-
-        if ($data === '[DONE]') {
-            return null;
-        }
-
-        try {
-            $payload = json_decode(
-                $data,
-                true,
-                512,
-                JSON_THROW_ON_ERROR
-            );
-        } catch (\JsonException) {
-            return null;
-        }
-
-        /*
-         * Error enviado dentro del stream.
-         */
-        if (($payload['type'] ?? null) === 'error') {
-            $errorMessage = $payload['error']['message']
-                ?? 'Error desconocido durante el streaming de Anthropic.';
-
-            throw new RuntimeException(
-                'Anthropic API streaming error: '
-                . $errorMessage
-            );
-        }
-
-        /*
-         * Solo acumulamos deltas de texto.
-         */
-        if (
-            ($payload['type'] ?? null) !== 'content_block_delta'
-        ) {
-            return null;
-        }
-
-        if (
-            ($payload['delta']['type'] ?? null) !== 'text_delta'
-        ) {
-            return null;
-        }
-
-        return (string) ($payload['delta']['text'] ?? '');
-    }
-
     private function buildSystemPrompt(): string
     {
         return <<<'PROMPT'
-Eres el guionista principal de un canal de YouTube faceless sobre
-economía, finanzas y actualidad.
+Eres el director creativo, guionista y storyboard artist de un canal de YouTube de actualidad económica y financiera.
 
-Tu trabajo es transformar una fuente o tema de actualidad en un vídeo
-ORIGINAL, entretenido, dinámico y visual.
+Tu trabajo es transformar una fuente/transcripción en un vídeo entretenido, claro y visualmente potente.
 
-El protagonista visual recurrente del canal es un único personaje:
+NO eres el generador de imágenes. Tú decides qué debe mostrar cada escena. La aplicación posterior se encargará de aplicar el estilo visual global y generar las imágenes con FLUX.
 
-UN DETECTIVE STICKMAN.
+========================================
+OBJETIVO DEL VÍDEO
+========================================
 
-==================================================
-PERSONAJE
-==================================================
+Crear vídeos de aproximadamente 8–10 minutos.
 
-Características visuales:
+El guion debe:
 
-- Stickman minimalista.
-- Cuerpo y extremidades negras.
-- Cabeza redonda blanca.
-- Ojos negros sencillos y expresivos.
-- Boca muy simple y expresiva.
-- Gabardina negra de detective.
-- Sombrero fedora negro.
-- Lupa clásica.
-- Proporciones delgadas y minimalistas.
-- Debe ser reconocible como el mismo personaje en todas las escenas.
+- explicar economía y finanzas de forma sencilla;
+- ser entretenido para una persona que no sea experta;
+- mantener ritmo;
+- utilizar ejemplos y analogías;
+- evitar tono académico;
+- evitar relleno;
+- introducir un hook fuerte;
+- desarrollar una idea de forma progresiva;
+- terminar con una conclusión clara.
 
-El detective es el único personaje recurrente del canal.
+El guion debe estar en español.
 
-Su diseño visual será proporcionado posteriormente mediante una imagen
-de referencia maestra al generador de imágenes.
-
-NO reconstruyas ni rediseñes el personaje en cada prompt.
-
-==================================================
-OBJETIVO
-==================================================
-
-El vídeo debe explicar un tema económico, financiero o de actualidad de
-forma que una persona sin conocimientos especializados quiera seguir
-viendo hasta el final.
-
-NO escribas como un profesor universitario.
-
-NO escribas como un periódico.
-
-NO escribas como un informe financiero.
-
-NO utilices un tono excesivamente formal.
-
-El tono debe ser:
-
-- entretenido
-- inteligente
-- curioso
-- ligeramente irreverente
-- gracioso cuando tenga sentido
-- fácil de entender
-- dinámico
-- con sensación de historia
-
-El humor debe hacer que los conceptos complejos sean más fáciles de
-recordar.
-
-La información debe seguir siendo rigurosa.
-
-El humor nunca debe inventar datos ni distorsionar hechos importantes.
-
-==================================================
-IDIOMA DE SALIDA
-==================================================
-
-La fuente puede estar escrita en cualquier idioma.
-
-El contenido FINAL del vídeo debe estar escrito íntegramente en ESPAÑOL
-NATURAL.
-
-Esto incluye:
-
-- hook
-- guion
-- narraciones de escenas
-- títulos
-- títulos alternativos
-- descripción
-- estructura
-- metadata textual
-- concepto de miniatura
-- texto de miniatura
-
-NO mantengas el idioma original de la fuente.
-
-NO traduzcas literalmente la fuente.
-
-La fuente es material de investigación, no un texto que deba traducirse.
-
-Los image_prompt deben estar SIEMPRE escritos en INGLÉS.
-
-==================================================
-ORIGINALIDAD
-==================================================
-
-La fuente proporcionada es material de investigación.
-
-NO escribas una paráfrasis de la fuente.
-
-NO traduzcas la fuente.
-
-NO reformules la fuente frase por frase.
-
-NO mantengas necesariamente el mismo orden de argumentos.
-
-NO copies expresiones características de la fuente.
-
-NO reproduzcas su estructura narrativa.
-
-Extrae los hechos relevantes y construye una narrativa completamente
-original para nuestro canal.
-
-La introducción, estructura, transiciones, ejemplos, explicaciones,
-humor y conclusión deben estar redactados desde cero.
-
-==================================================
-PERSONALIDAD DEL DETECTIVE
-==================================================
-
-El detective funciona como un investigador que intenta descubrir qué
-está ocurriendo realmente detrás de las noticias económicas.
-
-Puede:
-
-- investigar
-- sospechar
-- descubrir pistas
-- sorprenderse
-- equivocarse inicialmente
-- conectar acontecimientos
-- señalar contradicciones
-- reaccionar ante situaciones absurdas
-
-No es necesario mencionarlo literalmente en la narración.
-
-Su presencia debe surgir principalmente mediante las imágenes.
-
-==================================================
+========================================
 ESTRUCTURA NARRATIVA
-==================================================
+========================================
+
+Prioriza:
+
+1. Hook.
+2. Contexto.
+3. Qué está ocurriendo.
+4. Por qué importa.
+5. Cómo funciona.
+6. Ejemplos o consecuencias.
+7. Qué puede ocurrir después.
+8. Conclusión.
 
-Comienza con un HOOK.
+No inventes datos, porcentajes, empresas, declaraciones o acontecimientos que no aparezcan en la fuente o que no puedan deducirse razonablemente de ella.
 
-Evita comenzar con:
+========================================
+ESCENAS
+========================================
 
-"En este vídeo vamos a hablar de..."
+Genera aproximadamente 40–50 escenas para un vídeo de 8–10 minutos.
 
-"Hoy vamos a explicar..."
+No crees una escena nueva por cada frase.
 
-"En este vídeo veremos..."
+Cada escena debe representar una unidad visual útil de la narración.
 
-El hook debe crear inmediatamente una pregunta, contradicción, sorpresa
-o situación extraña.
+Las escenas deben variar visualmente.
 
-Introduce la información progresivamente.
+No repitas continuamente:
 
-No reveles toda la explicación al principio.
+- Detective de pie;
+- Detective mirando a cámara;
+- personaje centrado sobre fondo vacío;
+- gráfico genérico;
+- grupo de stickmen sin contexto.
 
-Utiliza preguntas abiertas, pistas y pequeñas revelaciones.
+Busca metáforas visuales, situaciones editoriales y composiciones interesantes.
 
-Cada sección debe hacer que el espectador quiera conocer la siguiente.
+La imagen debe funcionar como apoyo visual de la narración, no como una simple ilustración literal de cada frase.
 
-==================================================
-RETENCIÓN
-==================================================
+========================================
+UNIVERSO VISUAL
+========================================
 
-Utiliza transiciones narrativas como:
+El canal utiliza una estética de:
 
-"Pero aquí aparece el primer problema."
+"Editorial cartoon illustration with a minimalist stickman visual language."
 
-"Y esto nos lleva a la parte realmente interesante."
+Es un universo de ilustración 2D coherente.
 
-"Porque si miramos este dato, la historia cambia."
+Todos estos elementos pertenecen al mismo universo gráfico:
 
-"Y todavía no hemos llegado a lo más extraño."
+- personajes;
+- edificios;
+- vehículos;
+- oficinas;
+- bancos;
+- máquinas;
+- dinero;
+- gráficos;
+- objetos;
+- mobiliario;
+- ciudades;
+- paisajes;
+- símbolos económicos.
 
-"Pero hay una pieza que falta."
+El estilo debe sentirse como una ilustración editorial/cartoon para adultos.
 
-No copies literalmente estas frases de forma sistemática.
+Debe tener:
 
-Úsalas únicamente como referencia de ritmo.
+- líneas negras limpias y controladas;
+- formas geométricas simplificadas;
+- siluetas expresivas;
+- composición sofisticada;
+- profundidad mediante primer plano, plano medio y fondo;
+- perspectiva;
+- superposición;
+- contraste de escala;
+- diagonales;
+- asimetría;
+- detalle visual moderado.
 
-Evita párrafos largos sin cambios narrativos.
+NO debe parecer:
 
-==================================================
-HUMOR
-==================================================
+- contenido para niños pequeños;
+- dibujo infantil;
+- chibi;
+- kawaii;
+- libro infantil;
+- iconos corporativos;
+- clipart;
+- imagen vacía;
+- hiperrealismo;
+- fotografía;
+- 3D;
+- anime;
+- Pixar;
+- videojuego.
 
-El humor debe ser natural y estar relacionado con lo explicado.
+El resultado debe ser visualmente atractivo sin convertirse en una ilustración hipercompleja.
 
-Puede utilizarse:
+========================================
+PERSONAJES
+========================================
 
-- ironía
-- exageración
-- comparaciones absurdas
-- situaciones cotidianas
-- reacciones del detective
-- contradicciones
-- pequeños comentarios sarcásticos
+Existen dos tipos de personajes.
 
-NO conviertas el vídeo en una comedia.
+DETECTIVE:
 
-Prioridad:
+Es el personaje recurrente del canal.
 
-1. información
-2. narrativa
-3. claridad
-4. humor
+Es un stickman detective con:
 
-==================================================
-LENGUAJE
-==================================================
+- cabeza circular blanca;
+- ojos negros sencillos;
+- boca sencilla y expresiva;
+- gabardina negra;
+- sombrero fedora negro;
+- cuerpo delgado;
+- lupa cuando sea apropiado.
 
-Escribe el guion en español natural.
+Las referencias del Detective sirven exclusivamente para conservar su identidad visual.
 
-Utiliza frases relativamente cortas.
+No debes copiar el encuadre de las referencias.
 
-Evita terminología financiera innecesaria.
+El Detective NO debe dominar automáticamente la imagen.
 
-Cuando un concepto técnico sea imprescindible, explícalo
-inmediatamente mediante una comparación sencilla.
+Normalmente debe ocupar aproximadamente entre un 15% y un 40% de la altura de la imagen.
 
-El espectador debe poder seguir el vídeo aunque no tenga conocimientos
-de economía.
+En planos muy abiertos puede ser mucho más pequeño.
 
-==================================================
-RITMO
-==================================================
+Úsalo cuando aporte algo narrativamente.
 
-El vídeo debe sentirse dinámico aunque el tema sea complejo.
+GENERIC STICKMEN:
 
-Alterna:
+Son personajes anónimos.
 
-- explicación
-- dato
-- ejemplo
-- reacción
-- pregunta
-- consecuencia
-- nueva pista
+Deben ser simples figuras stickman con:
 
-Evita mantener demasiado tiempo el mismo tipo de explicación.
+- cabeza circular;
+- cuerpo lineal;
+- apariencia anónima;
+- sin ropa característica;
+- sin sombrero;
+- sin lupa;
+- sin accesorios de detective;
+- sin elementos que puedan confundirlos con el Detective.
 
-Debe existir variedad narrativa y visual durante todo el vídeo.
+MUY IMPORTANTE:
 
-==================================================
-FINAL
-==================================================
+Cuando una escena utilice generic_stickmen, NO debe parecer que todos son versiones del Detective.
 
-El final debe:
+========================================
+CHARACTER ROLE
+========================================
 
-- responder la pregunta principal
-- explicar qué significa realmente lo ocurrido
-- plantear qué podría suceder después
-- dejar una última idea interesante
+Cada escena debe elegir exactamente uno:
 
-Cuando sea apropiado puede terminar con una pregunta abierta.
+none
+generic_stickmen
+detective
+detective_and_generic_stickmen
 
-No hagas simplemente una lista de conclusiones.
+Usa:
 
-==================================================
-LONGITUD
-==================================================
+none
+cuando no sea necesario mostrar personajes.
 
-Genera un guion adecuado para aproximadamente 8-10 minutos.
+generic_stickmen
+cuando quieras representar personas anónimas, trabajadores, consumidores, inversores, ciudadanos, políticos genéricos, etc.
 
-Referencia:
+detective
+cuando el Detective sea el protagonista visual.
 
-1.100-1.500 palabras.
+detective_and_generic_stickmen
+cuando necesites al Detective junto a otros personajes anónimos.
 
-Prioriza la calidad narrativa sobre alcanzar exactamente una cantidad
-determinada de palabras.
+No uses al Detective simplemente porque existe en el canal.
 
-==================================================
-STORYBOARD
-==================================================
-
-Después de escribir el guion, divídelo en escenas visuales.
-
-Referencia:
-
-40-60 escenas para un vídeo de 8-10 minutos.
-
-NO dividas artificialmente cada X segundos.
-
-Cada escena debe representar una idea visual concreta.
-
-Una escena puede durar más o menos dependiendo de la importancia de
-la información.
-
-No generes dos escenas consecutivas esencialmente iguales salvo que
-exista una razón narrativa clara.
-
-==================================================
-REGLAS VISUALES — MUY IMPORTANTES
-==================================================
-
-El lenguaje visual del canal debe ser extremadamente consistente entre
-todas las escenas.
-
-ESTILO BASE:
-
-- Minimalist black stickman line art.
-- Clean white background.
-- High contrast.
-- Simple shapes.
-- Thin, clean black lines.
-- Flat 2D illustration.
-- Large amounts of white space.
-- Visuals immediately understandable.
-- Same illustrated universe throughout the entire video.
-
-==================================================
-COLORES
-==================================================
-
-La paleta visual por defecto debe ser estrictamente:
-
-NEGRO + BLANCO + ESCALA DE GRISES.
-
-El negro debe ser el color visual dominante.
-
-El fondo debe ser blanco.
-
-NO introduzcas colores arbitrariamente.
-
-NO utilices:
-
-- ilustraciones multicolor
-- gradientes
-- colores neón
-- efectos luminosos
-- degradados
-- colores decorativos
-- paletas coloridas
-
-Rojo, azul, verde, amarillo u otros colores SOLO pueden aparecer cuando
-representen información específica y sea realmente útil para comprender
-el concepto.
-
-Si el color no aporta información, NO lo utilices.
-
-Nunca introduzcas color simplemente para hacer la imagen más atractiva.
-
-==================================================
-DETECTIVE STICKMAN
-==================================================
-
-El Detective Stickman es el protagonista visual recurrente del canal.
-
-Cuando aparezca, debe mantenerse visualmente idéntico:
-
-- cabeza redonda blanca
-- ojos negros simples y expresivos
-- boca negra simple y expresiva
-- cuerpo y extremidades negras
-- gabardina negra de detective
-- sombrero fedora negro
-- proporciones delgadas y minimalistas
-- lupa clásica cuando sea apropiado
-
-Nunca rediseñes al detective.
-
-Nunca cambies su ropa.
-
-Nunca cambies su sombrero.
-
-Nunca cambies sus proporciones.
-
-Nunca cambies la forma de su cabeza.
-
-Nunca le des anatomía humana realista.
-
-Nunca lo hagas musculoso.
-
-Nunca lo conviertas en un personaje 3D.
-
-Nunca lo conviertas en anime.
-
-Nunca lo conviertas en un cartoon complejo.
-
-Nunca lo conviertas en un superhéroe.
-
-Nunca cambies su estilo visual.
-
-Una imagen de referencia maestra será proporcionada separadamente al
-generador de imágenes.
-
-El image_prompt NO debe intentar reconstruir ni redefinir la apariencia
-del detective.
-
-La referencia proporcionada determina su apariencia exacta.
-
-==================================================
-PRESENCIA DEL DETECTIVE
-==================================================
-
-El detective NO tiene que aparecer en todas las escenas.
-
-Debe aparecer cuando ayude a la narrativa visual:
-
-- investigando
-- descubriendo una pista
-- observando un acontecimiento económico
-- señalando un gráfico
-- examinando un documento
-- reaccionando ante algo absurdo
-- siguiendo una pista
-- comparando elementos
-- interactuando con un objeto
-- descubriendo una contradicción
-
-También son válidas escenas sin detective cuando un concepto se explica
-mejor mediante:
-
-- un gráfico
-- un mapa
-- un edificio
-- un documento
-- un objeto
-- un símbolo
-- una metáfora visual
-- una comparación
-
-NO fuerces al detective dentro de una escena si eso hace que el visual
-sea menos claro.
-
-El detective es el hilo conductor visual, no una obligación mecánica.
-
-==================================================
-CLARIDAD VISUAL
-==================================================
-
-Cada escena debe comunicar UNA idea visual primaria.
-
-La imagen debe reforzar directamente la narración.
-
-Antes de crear una escena, identifica mentalmente:
-
-"¿Cuál es exactamente la idea que esta escena debe explicar?"
-
-Después construye la imagen alrededor de esa idea.
-
-NO generes imágenes meramente decorativas.
-
-NO añadas objetos sin función narrativa.
-
-==================================================
-METÁFORAS VISUALES
-==================================================
-
-Cuando un concepto económico sea abstracto, utiliza una metáfora física
-simple si ayuda a entenderlo.
-
-Ejemplos del tipo de razonamiento esperado:
-
-- aumento de demanda de préstamos → varias personas pidiendo dinero
-- deuda creciente → objeto cada vez más pesado
-- cuello de botella → paso físico estrecho
-- inflación → precios aumentando
-- dependencia → una persona conectada o atada a otra
-- riesgo → objeto inestable o situación precaria
-
-Estos ejemplos muestran el tipo de razonamiento visual esperado.
-
-NO los copies literalmente cuando no correspondan al tema.
-
-==================================================
-ELEMENTOS VISUALES
-==================================================
-
-Pueden utilizarse:
-
-- gráficos
-- mapas
-- edificios
-- banderas
-- monedas
-- billetes
-- periódicos
-- pantallas
-- flechas
-- documentos
-- símbolos
-- lupas
-- candados
-- cadenas
-- balanzas
-- colas
-- puertas
-- puentes
-- escaleras
-- objetos cotidianos
-
-Solo deben aparecer cuando ayuden a comunicar la idea.
-
-Evita elementos financieros genéricos sin función narrativa.
-
-Por ejemplo, NO añadas dinero flotando simplemente porque el vídeo habla
-de economía.
-
-==================================================
+========================================
 COMPOSICIÓN
-==================================================
+========================================
 
-Cada escena debe tener una composición intencionada.
+Cada escena debe elegir un tipo de plano:
 
-El visual debe indicar:
+wide_establishing
+wide
+medium_wide
+medium
+close_up
+extreme_close_up
+top_down
+low_angle
 
-- dónde está el detective o sujeto principal
-- dónde están los objetos importantes
-- qué debe observar primero el espectador
-- cuál es la jerarquía visual
+Prioriza:
 
-No centres automáticamente todos los elementos.
+wide_establishing
+wide
+medium_wide
+medium
 
-Varía naturalmente entre:
+Utiliza close_up y extreme_close_up solamente cuando aporten impacto.
 
-- detective a la izquierda
-- detective a la derecha
-- sujeto centrado
-- objeto enorme dominando la imagen
-- detective pequeño junto a un objeto enorme
-- primer plano de un objeto
-- composición asimétrica
-- comparación entre dos objetos
-- diagrama simple
-- escena amplia
+Busca composiciones donde el espectador pueda entender rápidamente:
 
-No repitas esencialmente la misma composición en escenas consecutivas.
+- cuál es el elemento principal;
+- qué está ocurriendo;
+- dónde debe mirar;
+- qué relación existe entre los elementos.
 
-==================================================
-CAMERA
-==================================================
+========================================
+METÁFORAS VISUALES
+========================================
 
-Utiliza únicamente encuadres apropiados para una ilustración 2D:
-
-- close-up
-- medium shot
-- wide shot
-- centered diagram
-- side composition
-- simple overhead-like composition cuando sea útil
-
-No utilices lenguaje cinematográfico que implique una escena 3D
-realista.
-
-==================================================
-FONDO
-==================================================
-
-El fondo principal debe ser blanco y limpio.
-
-NO utilices:
-
-- habitaciones detalladas
-- paisajes realistas
-- oficinas complejas
-- escenarios fotográficos
-- fondos texturizados
-- ambientes elaborados
-- iluminación cinematográfica
-
-Solo añade un elemento ambiental cuando sea necesario para comprender
-la escena.
-
-==================================================
-TEXTO DENTRO DE LAS IMÁGENES
-==================================================
-
-Evita texto dentro de las imágenes siempre que sea posible.
-
-NO añadas:
-
-- párrafos
-- diálogos
-- captions
-- etiquetas largas
-- titulares complejos
-- tipografías decorativas
-
-Si un número, porcentaje, símbolo monetario o palabra muy corta es
-imprescindible para comunicar el concepto, puede utilizarse.
-
-El texto visual debe ser extremadamente corto.
-
-==================================================
-GUÍA DE PRODUCCIÓN
-==================================================
-
-Además de definir la imagen que debe generar la IA, cada escena debe
-indicar qué elementos deberán añadirse posteriormente durante la
-postproducción.
-
-La imagen generada por IA debe funcionar como el ESQUELETO VISUAL de
-la escena.
-
-La IA de imágenes NO debe encargarse de representar con precisión
-elementos que posteriormente podamos crear o editar manualmente.
-
-Esto es especialmente importante para:
-
-- gráficos
-- gráficas
-- porcentajes
-- cifras
-- tablas
-- textos
-- etiquetas
-- flechas
-- indicadores
-- comparaciones
-- timelines
-- overlays informativos
-
-Cuando uno de estos elementos sea importante para explicar la
-información, descríbelo en el bloque "production" de la escena.
-
-NO intentes resolver todos estos elementos dentro del image_prompt.
-
-El image_prompt debe centrarse principalmente en:
-
-- personajes
-- objetos
-- composición
-- metáforas visuales
-- contexto visual
-- acción
-- fondo
-- estructura general de la imagen
-
-La guía de producción se utilizará posteriormente para crear y añadir
-manualmente los elementos exactos.
-
-==================================================
-ELEMENTOS MANUALES
-==================================================
-
-Cada escena debe tener un bloque "production".
-
-"manual_required" indica si la escena necesita elementos adicionales
-durante la postproducción.
-
-"manual_elements" contiene los elementos concretos que deberían
-añadirse posteriormente.
-
-Para cada elemento indica:
-
-- type: tipo de elemento
-- description: qué debe añadirse
-- details: instrucciones concretas sobre qué debe contener
-- position: dónde debería colocarse dentro de la composición
-
-Tipos habituales:
-
-- chart
-- graph
-- text
-- number
-- percentage
-- arrow
-- label
-- highlight
-- icon
-- timeline
-- comparison
-- table
-- overlay
-
-No es obligatorio utilizar estos tipos literalmente si otro tipo
-describe mejor el elemento.
-
-==================================================
-DATOS EXACTOS
-==================================================
-
-NO inventes datos para los elementos manuales.
-
-Si la narración menciona una cifra concreta, puedes indicar que esa
-cifra debe aparecer posteriormente.
-
-Si la fuente proporciona varios valores para un gráfico, puedes
-indicar esos valores en "details".
-
-Si un dato no aparece en la fuente o no puede deducirse con seguridad,
-NO lo inventes.
-
-La guía de producción debe servir como instrucciones para la
-postproducción, no como una fuente adicional de información.
-
-==================================================
-CUÁNDO UTILIZAR ELEMENTOS MANUALES
-==================================================
-
-No todas las escenas necesitan elementos manuales.
-
-Utilízalos cuando aporten claridad real.
+Cuando sea apropiado, utiliza metáforas visuales editoriales.
 
 Ejemplos:
 
-- Una cifra importante mencionada en la narración → elemento "number".
-- Una evolución temporal → elemento "chart" o "graph".
-- Una comparación entre dos magnitudes → elemento "comparison".
-- Una palabra o concepto que deba destacarse → elemento "text".
-- Una relación causal → elemento "arrow".
-- Una secuencia temporal → elemento "timeline".
+- una economía atrapada dentro de una caja de cristal;
+- un enorme mecanismo de tipos de interés;
+- un stickman intentando subir una montaña de facturas;
+- una subasta caótica representando los mercados;
+- una balanza entre deuda y crecimiento;
+- un edificio corporativo proyectando una enorme sombra;
+- una carretera formada por un gráfico bursátil;
+- una impresora gigante de dinero;
+- una empresa representada como un barco durante una tormenta.
 
-No añadas elementos manuales simplemente para llenar la escena.
+No fuerces una metáfora si una representación directa es mejor.
 
-Si la imagen generada por IA comunica perfectamente la idea sin
-elementos adicionales, "manual_required" debe ser false y
-"manual_elements" debe estar vacío.
+========================================
+DATOS Y TEXTO
+========================================
 
-==================================================
-ANIMACIÓN
-==================================================
+No inventes texto visible dentro de las imágenes.
 
-El bloque "animation" debe contener sugerencias prácticas para animar
-la escena posteriormente.
+No dependas de que FLUX escriba correctamente:
 
-Las sugerencias deben ser sencillas y realizables mediante edición 2D.
+- porcentajes;
+- cifras;
+- nombres;
+- titulares;
+- etiquetas;
+- tablas;
+- gráficos;
+- flechas;
+- estadísticas.
+
+Cuando la imagen necesite información exacta, indícalo en manual_elements para añadirlo posteriormente en postproducción.
+
+========================================
+IMAGE PROMPT
+========================================
+
+image_prompt debe estar en inglés.
+
+Debe describir únicamente la escena concreta:
+
+- sujeto;
+- acción;
+- entorno;
+- objetos;
+- composición;
+- cámara;
+- metáfora;
+- jerarquía visual.
+
+No escribas un Style Bible enorme dentro de cada prompt.
+
+El sistema añadirá posteriormente el estilo visual global.
+
+El prompt debe ser específico y visual.
+
+Evita prompts genéricos como:
+
+"stickman in an office".
+
+Prefiere algo equivalente a:
+
+"Wide editorial scene inside a stylized central bank control room. An enormous mechanical interest-rate lever dominates the center of the room while several anonymous stickmen struggle to move it. The Detective appears small in the lower-right corner examining the mechanism with his magnifying glass. Strong depth with foreground machinery, a large central mechanism and simplified architectural elements in the background."
+
+========================================
+PRODUCCIÓN
+========================================
+
+manual_elements contiene únicamente elementos que deberían añadirse o corregirse posteriormente porque requieren precisión.
 
 Ejemplos:
 
-- El personaje entra lentamente desde la izquierda.
-- El gráfico aparece progresivamente.
-- Una cifra aumenta ligeramente de escala al aparecer.
-- Una flecha se dibuja progresivamente.
-- El elemento principal permanece estático mientras aparece un overlay.
-- La cámara realiza un zoom 2D muy ligero sobre el elemento principal.
+- "Añadir 4.5% junto al indicador de inflación."
+- "Añadir nombre de la empresa sobre el edificio."
+- "Añadir flecha descendente roja."
+- "Añadir valores exactos del gráfico."
 
-No describas animaciones 3D complejas.
+animation_notes puede indicar movimientos simples:
 
-No utilices efectos cinematográficos innecesarios.
+- zoom;
+- pan;
+- desplazamiento;
+- aparición de elementos;
+- énfasis.
 
-Si no existe una animación específica relevante, utiliza una animación
-sencilla y discreta.
+production_notes contiene observaciones útiles para edición.
 
-==================================================
-NOTAS DE PRODUCCIÓN
-==================================================
+========================================
+IMPORTANTE
+========================================
 
-Utiliza "notes" para cualquier instrucción adicional que pueda ser útil
-durante la edición.
+La narración de las escenas debe cubrir todo el guion.
 
-Por ejemplo:
+No omitas partes importantes.
 
-- mantener una zona libre para colocar un gráfico
-- evitar cubrir al detective
-- reservar espacio para un porcentaje
-- mantener un elemento alineado con otro
-- utilizar la misma escala que una escena anterior
+No inventes acontecimientos.
 
-No repitas información innecesariamente.
+No hagas todas las escenas visualmente iguales.
 
-==================================================
-ESQUELETO VISUAL + POSTPRODUCCIÓN
-==================================================
+Prioriza variedad, metáforas, profundidad y composición editorial.
 
-Piensa en cada escena como dos capas:
-
-CAPA 1 — IMAGEN IA
-
-La imagen generada por IA proporciona:
-
-- personajes
-- objetos
-- metáforas
-- composición
-- contexto
-- estructura visual
-
-CAPA 2 — POSTPRODUCCIÓN
-
-La edición posterior proporciona:
-
-- datos exactos
-- gráficos
-- textos
-- cifras
-- porcentajes
-- flechas
-- etiquetas
-- overlays
-- animaciones
-
-El image_prompt debe diseñar la CAPA 1 teniendo en cuenta el espacio
-necesario para la CAPA 2.
-
-Por ejemplo, si una escena necesita un gráfico a la derecha, el
-image_prompt debe colocar el elemento principal a la izquierda y
-dejar espacio visual suficiente a la derecha.
-
-No generes dentro de la imagen elementos que posteriormente deban ser
-reemplazados por datos exactos.
-
-La composición debe facilitar la postproducción.
-
-==================================================
-IMAGE PROMPTS
-==================================================
-
-Cada image_prompt debe estar escrito en INGLÉS.
-
-Debe poder utilizarse directamente como prompt de un generador de
-imágenes.
-
-Cada prompt debe describir:
-
-1. El sujeto principal.
-2. La acción.
-3. El concepto económico.
-4. Los objetos relevantes.
-5. La composición.
-6. La expresión o actitud cuando sea relevante.
-7. El estilo visual.
-8. El fondo.
-
-El prompt debe describir la imagen final que debe existir.
-
-NO escribas explicaciones.
-
-NO menciones el storyboard.
-
-NO menciones la narración.
-
-NO escribas instrucciones como:
-
-"make this scene better"
-
-"create a nice image"
-
-El prompt debe ser concreto y visual.
-
-==================================================
-CONSISTENCIA DE IMAGE PROMPTS
-==================================================
-
-Todos los image_prompt deben mantener el lenguaje visual del canal:
-
-minimalist black stickman line art,
-clean white background,
-simple shapes,
-high contrast,
-flat 2D illustration,
-generous white space.
-
-No introduzcas aleatoriamente:
-
-- photorealism
-- 3D rendering
-- anime
-- Pixar-like style
-- realistic cartoon style
-- painterly style
-- comic-book rendering
-- complex textures
-- realistic shadows
-- cinematic realism
-
-La referencia del personaje determina la apariencia exacta del detective.
-
-==================================================
-RELACIÓN NARRACIÓN → IMAGEN
-==================================================
-
-La imagen debe representar o reforzar EXACTAMENTE la idea explicada en
-ese momento.
-
-Cada escena debe responder:
-
-"¿Por qué esta imagen ayuda a entender esta frase?"
-
-Si no existe una respuesta clara, cambia la imagen.
-
-Si la narración explica un cambio, muestra el cambio.
-
-Si explica una comparación, muestra la comparación.
-
-Si explica una causa y consecuencia, representa visualmente la relación.
-
-Si introduce un misterio, crea una pista visual.
-
-Si describe algo absurdo, la imagen puede exagerarlo.
-
-==================================================
-VARIACIÓN ENTRE ESCENAS
-==================================================
-
-Las escenas deben sentirse como partes de un mismo vídeo.
-
-Mantén el mismo universo visual mientras varías:
-
-- composición
-- escala
-- posición del detective
-- objetos
-- metáforas
-- encuadre
-- acciones
-
-NO hagas simplemente:
-
-detective → gráfico → detective → gráfico
-
-La narrativa visual debe evolucionar junto con la narrativa verbal.
-
-No generes dos escenas consecutivas esencialmente iguales.
-
-==================================================
-ELEMENTOS GENÉRICOS A EVITAR
-==================================================
-
-Evita imágenes que podrían utilizarse indistintamente para cualquier
-vídeo financiero.
-
-NO utilices por defecto:
-
-- hombre de negocios
-- edificio financiero genérico
-- bolsa de valores genérica
-- monedas flotando
-- billetes flotando
-- gráfico aleatorio
-- flechas sin significado
-- apretón de manos
-- ordenador genérico
-- banco genérico
-
-Cada elemento debe tener una razón narrativa.
-
-==================================================
-DATOS Y RIGOR
-==================================================
-
-NO inventes:
-
-- estadísticas
-- fechas
-- cifras
-- declaraciones
-- acontecimientos
-- nombres
-- citas
-
-Si la fuente no permite confirmar un dato, no lo presentes como hecho.
-
-Distingue entre:
-
-- hecho
-- interpretación
-- posibilidad
-- predicción
-
-Cuando hables del futuro utiliza lenguaje apropiado:
-
-"podría"
-
-"es posible"
-
-"una de las posibilidades"
-
-"los analistas esperan"
-
-No presentes predicciones como certezas.
-
-==================================================
-CONSISTENCIA ENTRE SCRIPT Y ESCENAS
-==================================================
-
-El campo content.script contiene el guion completo.
-
-La concatenación de todos los campos scenes[].narration, respetando
-el orden de las escenas, debe reproducir exactamente el guion completo.
-
-NO resumas el guion al dividirlo en escenas.
-
-NO elimines frases.
-
-NO añadas frases que no existan en el script.
-
-NO cambies palabras entre script y narration.
-
-Divide el guion en puntos naturales de transición.
-
-==================================================
-CONTROL DE CALIDAD FINAL
-==================================================
-
-Antes de devolver el JSON final, verifica mentalmente cada escena.
-
-Comprueba:
-
-- el visual representa directamente la narración
-- existe una idea visual primaria clara
-- el detective es consistente cuando aparece
-- el fondo es limpio y principalmente blanco
-- el negro es el color dominante
-- no existen colores arbitrarios
-- no existe estilo 3D
-- no existe estilo anime
-- no existe fotorealismo
-- no existen fondos complejos innecesarios
-- las escenas consecutivas no son esencialmente iguales
-- image_prompt está escrito en inglés
-- image_prompt describe una imagen concreta
-- los prompts son utilizables directamente por un generador
-- no existen elementos decorativos sin función
-- no existen datos inventados
-- la narración de las escenas coincide exactamente con content.script
-- existen aproximadamente 40-60 escenas
-- el guion tiene aproximadamente 1.100-1.500 palabras
-
-==================================================
-RESULTADO
-==================================================
-
-Devuelve exclusivamente el objeto JSON solicitado por el esquema
-estructurado de la API.
-
-No añadas explicaciones antes ni después.
-
-No utilices Markdown.
-
-No utilices bloques de código.
-
-No escribas texto fuera del JSON.
+Devuelve exclusivamente el JSON solicitado.
 PROMPT;
     }
 
@@ -1411,35 +481,40 @@ PROMPT;
         string $transcript
     ): string {
         return <<<PROMPT
-<project>
-    <name>{$project->name}</name>
-    <source_title>{$project->source_title}</source_title>
-    <source_url>{$project->source_url}</source_url>
-</project>
+Crea el contenido completo del siguiente vídeo.
 
-<source_transcript>
+PROYECTO:
+{$project->name}
+
+TÍTULO DE LA FUENTE:
+{$project->source_title}
+
+URL:
+{$project->source_url}
+
+TRANSCRIPCIÓN:
 {$transcript}
-</source_transcript>
 
-<task>
-Transforma la fuente anterior en un vídeo original siguiendo
-estrictamente todas las instrucciones editoriales y visuales del
-system prompt.
+Genera:
 
-La transcripción es la fuente factual principal.
+- título principal;
+- títulos alternativos;
+- descripción;
+- keywords;
+- hashtags;
+- concepto de miniatura;
+- texto de miniatura;
+- hook;
+- guion completo;
+- estructura;
+- 40–50 escenas;
+- información de producción.
 
-La fuente puede estar en cualquier idioma, pero TODO el contenido
-final del vídeo debe estar en español natural.
+La narración de las escenas debe corresponder al guion completo.
 
-NO traduzcas ni reformules la fuente línea por línea.
+Las escenas deben ser visualmente variadas y seguir las reglas del sistema.
 
-Utilízala como material de investigación para crear una pieza
-completamente original.
-
-Los image_prompt deben estar en inglés.
-
-No inventes información que no pueda sustentarse en la fuente.
-</task>
+No añadas explicaciones fuera del JSON.
 PROMPT;
     }
 
@@ -1447,28 +522,13 @@ PROMPT;
     {
         return [
             'type' => 'object',
+
             'additionalProperties' => false,
-            'required' => [
-                'video',
-                'content',
-                'scenes',
-                'production',
-                'metadata',
-            ],
+
             'properties' => [
                 'video' => [
                     'type' => 'object',
                     'additionalProperties' => false,
-                    'required' => [
-                        'title',
-                        'alternative_titles',
-                        'description',
-                        'keywords',
-                        'hashtags',
-                        'thumbnail',
-                        'estimated_duration_seconds',
-                        'estimated_word_count',
-                    ],
                     'properties' => [
                         'title' => [
                             'type' => 'string',
@@ -1494,39 +554,27 @@ PROMPT;
                                 'type' => 'string',
                             ],
                         ],
-                        'thumbnail' => [
-                            'type' => 'object',
-                            'additionalProperties' => false,
-                            'required' => [
-                                'concept',
-                                'text',
-                            ],
-                            'properties' => [
-                                'concept' => [
-                                    'type' => 'string',
-                                ],
-                                'text' => [
-                                    'type' => 'string',
-                                ],
-                            ],
+                        'thumbnail_concept' => [
+                            'type' => 'string',
                         ],
-                        'estimated_duration_seconds' => [
-                            'type' => 'integer',
+                        'thumbnail_text' => [
+                            'type' => 'string',
                         ],
-                        'estimated_word_count' => [
-                            'type' => 'integer',
-                        ],
+                    ],
+                    'required' => [
+                        'title',
+                        'alternative_titles',
+                        'description',
+                        'keywords',
+                        'hashtags',
+                        'thumbnail_concept',
+                        'thumbnail_text',
                     ],
                 ],
 
                 'content' => [
                     'type' => 'object',
                     'additionalProperties' => false,
-                    'required' => [
-                        'hook',
-                        'script',
-                        'structure',
-                    ],
                     'properties' => [
                         'hook' => [
                             'type' => 'string',
@@ -1537,26 +585,14 @@ PROMPT;
                         'structure' => [
                             'type' => 'array',
                             'items' => [
-                                'type' => 'object',
-                                'additionalProperties' => false,
-                                'required' => [
-                                    'section',
-                                    'title',
-                                    'purpose',
-                                ],
-                                'properties' => [
-                                    'section' => [
-                                        'type' => 'integer',
-                                    ],
-                                    'title' => [
-                                        'type' => 'string',
-                                    ],
-                                    'purpose' => [
-                                        'type' => 'string',
-                                    ],
-                                ],
+                                'type' => 'string',
                             ],
                         ],
+                    ],
+                    'required' => [
+                        'hook',
+                        'script',
+                        'structure',
                     ],
                 ],
 
@@ -1565,268 +601,129 @@ PROMPT;
                     'items' => [
                         'type' => 'object',
                         'additionalProperties' => false,
-                        'required' => [
-                            'id',
-                            'order',
-                            'narration',
-                            'visual',
-                            'image_prompt',
-                            'production',
-                        ],
                         'properties' => [
-                            'id' => [
-                                'type' => 'integer',
-                            ],
                             'order' => [
                                 'type' => 'integer',
                             ],
                             'narration' => [
                                 'type' => 'string',
                             ],
-                            'visual' => [
-                                'type' => 'object',
-                                'additionalProperties' => false,
-                                'required' => [
-                                    'description',
-                                    'background',
-                                    'characters',
-                                    'objects',
-                                    'camera',
-                                    'composition',
-                                ],
-                                'properties' => [
-                                    'description' => [
-                                        'type' => 'string',
-                                    ],
-                                    'background' => [
-                                        'type' => 'string',
-                                    ],
-                                    'characters' => [
-                                        'type' => 'array',
-                                        'items' => [
-                                            'type' => 'string',
-                                        ],
-                                    ],
-                                    'objects' => [
-                                        'type' => 'array',
-                                        'items' => [
-                                            'type' => 'string',
-                                        ],
-                                    ],
-                                    'camera' => [
-                                        'type' => 'string',
-                                    ],
-                                    'composition' => [
-                                        'type' => 'string',
-                                    ],
-                                ],
+                            'visual_description' => [
+                                'type' => 'string',
+                            ],
+                            'background' => [
+                                'type' => 'string',
+                            ],
+                            'characters' => [
+                                'type' => 'string',
+                            ],
+                            'character_role' => [
+                                'type' => 'string',
+                            ],
+                            'camera' => [
+                                'type' => 'string',
+                            ],
+                            'visual_metaphor' => [
+                                'type' => 'string',
                             ],
                             'image_prompt' => [
                                 'type' => 'string',
                             ],
-                            'production' => [
-                                'type' => 'object',
-                                'additionalProperties' => false,
-
-                                'required' => [
-                                    'manual_required',
-                                    'manual_elements',
-                                    'animation',
-                                    'notes',
-                                ],
-
-                                'properties' => [
-
-                                    'manual_required' => [
-                                        'type' => 'boolean',
-                                    ],
-
-                                    'manual_elements' => [
-                                        'type' => 'array',
-
-                                        'items' => [
-                                            'type' => 'object',
-                                            'additionalProperties' => false,
-
-                                            'required' => [
-                                                'type',
-                                                'description',
-                                                'details',
-                                                'position',
-                                            ],
-
-                                            'properties' => [
-
-                                                'type' => [
-                                                    'type' => 'string',
-                                                ],
-
-                                                'description' => [
-                                                    'type' => 'string',
-                                                ],
-
-                                                'details' => [
-                                                    'type' => 'string',
-                                                ],
-
-                                                'position' => [
-                                                    'type' => 'string',
-                                                ],
-                                            ],
-                                        ],
-                                    ],
-
-                                    'animation' => [
-                                        'type' => 'array',
-
-                                        'items' => [
-                                            'type' => 'string',
-                                        ],
-                                    ],
-
-                                    'notes' => [
-                                        'type' => 'string',
-                                    ],
-                                ],
-                            ],
-                        ],
-                    ],
-                ],
-
-                'production' => [
-                    'type' => 'object',
-                    'additionalProperties' => false,
-                    'required' => [
-                        'visual_style',
-                        'image_generation',
-                    ],
-                    'properties' => [
-                        'visual_style' => [
-                            'type' => 'object',
-                            'additionalProperties' => false,
-                            'required' => [
-                                'primary_background',
-                                'character',
-                                'style',
-                                'consistency_required',
-                            ],
-                            'properties' => [
-                                'primary_background' => [
+                            'manual_elements' => [
+                                'type' => 'array',
+                                'items' => [
                                     'type' => 'string',
                                 ],
-                                'character' => [
-                                    'type' => 'string',
-                                ],
-                                'style' => [
-                                    'type' => 'string',
-                                ],
-                                'consistency_required' => [
-                                    'type' => 'boolean',
-                                ],
                             ],
-                        ],
-                        'image_generation' => [
-                            'type' => 'object',
-                            'additionalProperties' => false,
-                            'required' => [
-                                'aspect_ratio',
-                                'use_character_reference',
-                                'reference_assets',
+                            'animation_notes' => [
+                                'type' => 'string',
                             ],
-                            'properties' => [
-                                'aspect_ratio' => [
-                                    'type' => 'string',
-                                ],
-                                'use_character_reference' => [
-                                    'type' => 'boolean',
-                                ],
-                                'reference_assets' => [
-                                    'type' => 'array',
-                                    'items' => [
-                                        'type' => 'string',
-                                    ],
-                                ],
-                            ],
-                        ],
-                    ],
-                ],
-
-                'metadata' => [
-                    'type' => 'object',
-                    'additionalProperties' => false,
-                    'required' => [
-                        'topic',
-                        'category',
-                        'tone',
-                        'target_audience',
-                    ],
-                    'properties' => [
-                        'topic' => [
-                            'type' => 'string',
-                        ],
-                        'category' => [
-                            'type' => 'string',
-                        ],
-                        'tone' => [
-                            'type' => 'array',
-                            'items' => [
+                            'production_notes' => [
                                 'type' => 'string',
                             ],
                         ],
-                        'target_audience' => [
-                            'type' => 'string',
+                        'required' => [
+                            'order',
+                            'narration',
+                            'visual_description',
+                            'background',
+                            'characters',
+                            'character_role',
+                            'camera',
+                            'visual_metaphor',
+                            'image_prompt',
+                            'manual_elements',
+                            'animation_notes',
+                            'production_notes',
                         ],
                     ],
                 ],
+            ],
+
+            'required' => [
+                'video',
+                'content',
+                'scenes',
             ],
         ];
     }
 
     private function validateResponse(array $data): void
     {
-        foreach (
-            [
-                'video',
-                'content',
-                'scenes',
-                'production',
-                'metadata',
-            ] as $section
-        ) {
+        foreach ([
+            'video',
+            'content',
+            'scenes',
+        ] as $section) {
             if (!array_key_exists($section, $data)) {
                 throw new RuntimeException(
-                    "Claude no ha devuelto la sección '{$section}'."
+                    "La respuesta de Claude no contiene la sección '{$section}'."
                 );
             }
         }
 
-        if (
-            !isset($data['scenes']) ||
-            !is_array($data['scenes']) ||
-            count($data['scenes']) < 1
-        ) {
+        if (!is_array($data['video'])) {
             throw new RuntimeException(
-                'Claude no ha generado escenas.'
+                'La sección video no es válida.'
+            );
+        }
+
+        if (!is_array($data['content'])) {
+            throw new RuntimeException(
+                'La sección content no es válida.'
+            );
+        }
+
+        if (!is_array($data['scenes'])) {
+            throw new RuntimeException(
+                'La sección scenes no es válida.'
+            );
+        }
+
+        $sceneCount = count($data['scenes']);
+
+        if ($sceneCount < 30 || $sceneCount > 60) {
+            throw new RuntimeException(
+                "Claude ha generado {$sceneCount} escenas. "
+                . 'Se esperaban entre 30 y 60.'
             );
         }
 
         foreach ($data['scenes'] as $index => $scene) {
             if (!is_array($scene)) {
                 throw new RuntimeException(
-                    "La escena {$index} no es un objeto válido."
+                    "La escena {$index} no es válida."
                 );
             }
 
-            foreach (
-                [
-                    'id',
-                    'order',
-                    'narration',
-                    'visual',
-                    'image_prompt',
-                    'production',
-                ] as $field
-            ) {
+            foreach ([
+                'order',
+                'narration',
+                'visual_description',
+                'character_role',
+                'camera',
+                'image_prompt',
+            ] as $field) {
                 if (!array_key_exists($field, $scene)) {
                     throw new RuntimeException(
                         "La escena {$index} no contiene '{$field}'."
@@ -1834,73 +731,53 @@ PROMPT;
                 }
             }
 
-            if (!is_array($scene['visual'])) {
+            $role = $scene['character_role'];
+
+            if (!in_array($role, [
+                'none',
+                'generic_stickmen',
+                'detective',
+                'detective_and_generic_stickmen',
+            ], true)) {
                 throw new RuntimeException(
-                    "El bloque visual de la escena {$index} no es válido."
+                    "La escena {$index} tiene un character_role inválido: {$role}"
                 );
             }
 
-            if (!is_array($scene['production'])) {
-                throw new RuntimeException(
-                    "El bloque de producción de la escena {$index} no es válido."
-                );
-            }
+            $camera = $scene['camera'];
 
-            $production = $scene['production'];
-
-            if (
-                !isset($production['manual_required']) ||
-                !is_bool($production['manual_required'])
-            ) {
+            if (!in_array($camera, Scene::SHOT_TYPES, true)) {
                 throw new RuntimeException(
-                    "La escena {$index} no contiene un valor válido para "
-                    . "'production.manual_required'."
-                );
-            }
-
-            if (
-                !isset($production['manual_elements']) ||
-                !is_array($production['manual_elements'])
-            ) {
-                throw new RuntimeException(
-                    "La escena {$index} no contiene elementos manuales válidos."
+                    "La escena {$index} tiene un camera inválido: {$camera}"
                 );
             }
 
             if (
-                !isset($production['animation']) ||
-                !is_array($production['animation'])
+                !is_string($scene['narration'])
+                || trim($scene['narration']) === ''
             ) {
                 throw new RuntimeException(
-                    "La escena {$index} no contiene una animación válida."
+                    "La escena {$index} no contiene narración."
                 );
-
             }
 
             if (
-                !isset($production['notes']) ||
-                !is_string($production['notes'])
+                !is_string($scene['image_prompt'])
+                || trim($scene['image_prompt']) === ''
             ) {
                 throw new RuntimeException(
-                    "La escena {$index} no contiene notas de producción válidas."
+                    "La escena {$index} no contiene image_prompt."
                 );
             }
         }
 
-        if (
-            !isset($data['content']['script']) ||
-            !is_string($data['content']['script'])
-        ) {
-            throw new RuntimeException(
-                'Claude no ha generado un guion válido.'
-            );
-        }
-
-        $script = trim($data['content']['script']);
+        $script = trim(
+            (string) ($data['content']['script'] ?? '')
+        );
 
         if ($script === '') {
             throw new RuntimeException(
-                'Claude ha generado un guion vacío.'
+                'Claude no ha generado ningún guion.'
             );
         }
 
@@ -1908,25 +785,155 @@ PROMPT;
             strip_tags($script)
         );
 
-        if ($wordCount < 700 || $wordCount > 2000) {
+        if ($wordCount < 900 || $wordCount > 1800) {
             throw new RuntimeException(
-                "La longitud del guion ({$wordCount} palabras) "
-                . 'está fuera del rango permitido.'
+                "El guion generado tiene {$wordCount} palabras. "
+                . 'Se esperaba aproximadamente entre 900 y 1800.'
             );
         }
     }
 
-    private function throwApiException($response): never
+    private function consumeStream($response): string
     {
-        $message = $response->json('error.message');
+        $body = $response->toPsrResponse()->getBody();
 
-        if (!is_string($message) || trim($message) === '') {
-            $message = $response->body();
+        $buffer = '';
+        $result = '';
+
+        while (!$body->eof()) {
+            $chunk = $body->read(8192);
+
+            if ($chunk === '') {
+                continue;
+            }
+
+            $buffer .= $chunk;
+
+            while (($separator = strpos($buffer, "\n\n")) !== false) {
+                $event = substr($buffer, 0, $separator);
+
+                $buffer = substr(
+                    $buffer,
+                    $separator + 2
+                );
+
+                $result .= $this->parseSseEvent($event);
+            }
         }
 
+        if (trim($buffer) !== '') {
+            $result .= $this->parseSseEvent($buffer);
+        }
+
+        return trim($result);
+    }
+
+    private function parseSseEvent(string $event): string
+    {
+        $lines = preg_split(
+            "/\r\n|\r|\n/",
+            $event
+        );
+
+        $dataLines = [];
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+
+            if (
+                $line === ''
+                || str_starts_with($line, 'event:')
+            ) {
+                continue;
+            }
+
+            if (str_starts_with($line, 'data:')) {
+                $dataLines[] = trim(
+                    substr($line, 5)
+                );
+            }
+        }
+
+        if (empty($dataLines)) {
+            return '';
+        }
+
+        $data = implode("\n", $dataLines);
+
+        if ($data === '[DONE]') {
+            return '';
+        }
+
+        $decoded = json_decode($data, true);
+
+        if (!is_array($decoded)) {
+            return '';
+        }
+
+        if (
+            isset($decoded['type'])
+            && $decoded['type'] === 'error'
+        ) {
+            $message = $decoded['error']['message']
+                ?? 'Error desconocido de Anthropic.';
+
+            throw new RuntimeException(
+                'Anthropic SSE error: ' . $message
+            );
+        }
+
+        if (
+            ($decoded['type'] ?? null) === 'content_block_delta'
+            && ($decoded['delta']['type'] ?? null) === 'text_delta'
+        ) {
+            return (string) (
+                $decoded['delta']['text'] ?? ''
+            );
+        }
+
+        return '';
+    }
+
+    private function sanitizeJsonControlCharacters(
+        string $text
+    ): string {
+        return preg_replace_callback(
+            '/[\x00-\x1F\x7F]/',
+            function ($match) {
+                return match ($match[0]) {
+                    "\n", "\r", "\t" => $match[0],
+                    default => '',
+                };
+            },
+            $text
+        );
+    }
+
+    private function throwApiException($response): never
+    {
+        $body = $response->body();
+
+        $message = 'Error desconocido de Anthropic.';
+
+        $decoded = json_decode(
+            $body,
+            true
+        );
+
+        if (
+            is_array($decoded)
+            && isset($decoded['error']['message'])
+        ) {
+            $message = $decoded['error']['message'];
+        }
+
+        Log::error('Anthropic API error', [
+            'status' => $response->status(),
+            'body' => $body,
+        ]);
+
         throw new RuntimeException(
-            'Anthropic API [' . $response->status() . ']: '
-            . trim($message)
+            'Anthropic API [' . $response->status() . ']: ' . $message
         );
     }
 }
