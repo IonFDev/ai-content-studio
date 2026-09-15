@@ -27,16 +27,27 @@ class ImageGenerationService
         try {
             $references = [];
 
-            if ($project->character?->reference_sheet_path) {
-                $references[] = $project
-                    ->character
-                    ->reference_sheet_path;
-            }
+            /*
+             * IMPORTANT:
+             *
+             * Character references are ONLY sent when the scene
+             * explicitly contains the Detective.
+             *
+             * Generic stickmen must NEVER receive the Detective
+             * reference images.
+             */
+            if ($scene->usesDetective()) {
+                if ($project->character?->reference_sheet_path) {
+                    $references[] = $project
+                        ->character
+                        ->reference_sheet_path;
+                }
 
-            if ($project->character?->portrait_reference_path) {
-                $references[] = $project
-                    ->character
-                    ->portrait_reference_path;
+                if ($project->character?->portrait_reference_path) {
+                    $references[] = $project
+                        ->character
+                        ->portrait_reference_path;
+                }
             }
 
             $result = $this->provider->generateImage(
@@ -45,6 +56,14 @@ class ImageGenerationService
                 [
                     'width' => 1536,
                     'height' => 864,
+
+                    'character_role' => $scene->character_role,
+
+                    'shot_type' => $scene->shot_type,
+
+                    'visual_metaphor' => $scene->visual_metaphor,
+
+                    'uses_character_reference' => $scene->usesDetective(),
                 ]
             );
 
@@ -58,9 +77,11 @@ class ImageGenerationService
             );
 
             if (
-                $scene->image_path &&
-                $scene->image_path !== $path &&
-                Storage::disk('local')->exists($scene->image_path)
+                $scene->image_path
+                && $scene->image_path !== $path
+                && Storage::disk('local')->exists(
+                    $scene->image_path
+                )
             ) {
                 Storage::disk('local')->delete(
                     $scene->image_path
@@ -124,8 +145,9 @@ class ImageGenerationService
         }
     }
 
-    private function syncProjectStatus(Project $project): void
-    {
+    private function syncProjectStatus(
+        Project $project
+    ): void {
         $total = $project->scenes()->count();
 
         $generated = $project->scenes()

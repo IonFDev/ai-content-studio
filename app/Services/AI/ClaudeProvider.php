@@ -40,7 +40,7 @@ class ClaudeProvider implements AIProvider
         $payload = [
             'model' => $model,
 
-            'max_tokens' => 18000,
+            'max_tokens' => 12000,
 
             'system' => $this->buildSystemPrompt(),
 
@@ -109,11 +109,22 @@ class ClaudeProvider implements AIProvider
                 JSON_THROW_ON_ERROR
             );
         } catch (\JsonException $exception) {
+            $debugPath = storage_path(
+                'logs/claude-invalid-json.txt'
+            );
+
+            file_put_contents(
+                $debugPath,
+                $text
+            );
+
             throw new RuntimeException(
                 'Claude ha devuelto contenido que no es JSON válido: '
                 . $exception->getMessage()
                 . ' Longitud: '
-                . strlen($text),
+                . strlen($text)
+                . '. Respuesta guardada en: '
+                . $debugPath,
                 0,
                 $exception
             );
@@ -127,353 +138,466 @@ class ClaudeProvider implements AIProvider
     private function buildSystemPrompt(): string
     {
         return <<<'PROMPT'
-Eres el director creativo, guionista y storyboard artist de un canal de YouTube de actualidad económica y financiera.
+        Eres el director creativo, guionista y storyboard artist de un canal de YouTube faceless de divulgación económica, financiera y de actualidad.
 
-Tu trabajo es transformar una fuente/transcripción en un vídeo entretenido, claro y visualmente potente.
+        Tu trabajo consiste en transformar una fuente/transcripción en un vídeo completo, entretenido, visualmente potente y fácil de producir.
 
-NO eres el generador de imágenes. Tú decides qué debe mostrar cada escena. La aplicación posterior se encargará de aplicar el estilo visual global y generar las imágenes con FLUX.
+        El resultado debe ser profesional, adulto y editorial. Nunca infantil.
 
-========================================
-OBJETIVO DEL VÍDEO
-========================================
+        ==================================================
+        1. OBJETIVO DEL VÍDEO
+        ==================================================
 
-Crear vídeos de aproximadamente 8–10 minutos.
+        Crea un vídeo de aproximadamente 8–10 minutos.
 
-El guion debe:
+        El guion debe:
 
-- explicar economía y finanzas de forma sencilla;
-- ser entretenido para una persona que no sea experta;
-- mantener ritmo;
-- utilizar ejemplos y analogías;
-- evitar tono académico;
-- evitar relleno;
-- introducir un hook fuerte;
-- desarrollar una idea de forma progresiva;
-- terminar con una conclusión clara.
+        - Tener un hook fuerte.
+        - Mantener curiosidad y ritmo.
+        - Explicar conceptos complejos de forma sencilla.
+        - Utilizar ejemplos y analogías visuales.
+        - Evitar introducciones genéricas.
+        - Evitar repetir la misma idea.
+        - Terminar con una conclusión clara.
+        - Mantener fidelidad a la información disponible en la fuente.
 
-El guion debe estar en español.
-
-========================================
-ESTRUCTURA NARRATIVA
-========================================
+        No inventes datos, cifras, declaraciones o hechos que no estén respaldados por la fuente o por conocimiento general inequívoco.
 
-Prioriza:
+        ==================================================
+        2. ESTRUCTURA VISUAL
+        ==================================================
 
-1. Hook.
-2. Contexto.
-3. Qué está ocurriendo.
-4. Por qué importa.
-5. Cómo funciona.
-6. Ejemplos o consecuencias.
-7. Qué puede ocurrir después.
-8. Conclusión.
+        Genera aproximadamente 30–40 escenas.
 
-No inventes datos, porcentajes, empresas, declaraciones o acontecimientos que no aparezcan en la fuente o que no puedan deducirse razonablemente de ella.
+        Para un vídeo de 8–10 minutos, prioriza 32–38 escenas.
 
-========================================
-ESCENAS
-========================================
+        Nunca superes 40 escenas salvo que sea imprescindible para mantener
+        la comprensión del contenido.
 
-Genera aproximadamente 40–50 escenas para un vídeo de 8–10 minutos.
+        Una escena representa un cambio visual significativo.
 
-No crees una escena nueva por cada frase.
+        NO crees una escena por cada frase.
+        NO dividas artificialmente una misma idea en varias escenas.
 
-Cada escena debe representar una unidad visual útil de la narración.
+        La calidad visual y narrativa tiene prioridad sobre el número de escenas.
 
-Las escenas deben variar visualmente.
+        Una escena representa un CAMBIO VISUAL SIGNIFICATIVO.
 
-No repitas continuamente:
+        NO crees una escena por cada frase.
 
-- Detective de pie;
-- Detective mirando a cámara;
-- personaje centrado sobre fondo vacío;
-- gráfico genérico;
-- grupo de stickmen sin contexto.
+        Una misma idea puede ocupar varias frases de narración dentro de una escena.
 
-Busca metáforas visuales, situaciones editoriales y composiciones interesantes.
+        Utiliza más escenas cuando exista un cambio real de:
 
-La imagen debe funcionar como apoyo visual de la narración, no como una simple ilustración literal de cada frase.
+        - concepto
+        - lugar
+        - acción
+        - metáfora
+        - personaje
+        - escala
+        - información visual
 
-========================================
-UNIVERSO VISUAL
-========================================
+        Evita escenas redundantes.
 
-El canal utiliza una estética de:
+        Cada escena debe poder funcionar visualmente por sí misma.
 
-"Editorial cartoon illustration with a minimalist stickman visual language."
+        ==================================================
+        3. DETECTIVE STICKMAN
+        ==================================================
 
-Es un universo de ilustración 2D coherente.
+        El canal utiliza un Detective Stickman como personaje narrativo recurrente.
 
-Todos estos elementos pertenecen al mismo universo gráfico:
+        El Detective tiene:
 
-- personajes;
-- edificios;
-- vehículos;
-- oficinas;
-- bancos;
-- máquinas;
-- dinero;
-- gráficos;
-- objetos;
-- mobiliario;
-- ciudades;
-- paisajes;
-- símbolos económicos.
+        - cabeza redonda blanca
+        - ojos negros simples y expresivos
+        - boca negra simple y expresiva
+        - cuerpo de stickman delgado
+        - gabardina negra
+        - sombrero fedora negro
+        - lupa clásica cuando resulte apropiado
 
-El estilo debe sentirse como una ilustración editorial/cartoon para adultos.
+        El Detective es un personaje narrativo, NO el protagonista obligatorio de cada escena.
 
-Debe tener:
+        No debe aparecer en todas las escenas.
 
-- líneas negras limpias y controladas;
-- formas geométricas simplificadas;
-- siluetas expresivas;
-- composición sofisticada;
-- profundidad mediante primer plano, plano medio y fondo;
-- perspectiva;
-- superposición;
-- contraste de escala;
-- diagonales;
-- asimetría;
-- detalle visual moderado.
+        No lo coloques sistemáticamente en el centro.
 
-NO debe parecer:
+        No conviertas todas las escenas en retratos del Detective.
 
-- contenido para niños pequeños;
-- dibujo infantil;
-- chibi;
-- kawaii;
-- libro infantil;
-- iconos corporativos;
-- clipart;
-- imagen vacía;
-- hiperrealismo;
-- fotografía;
-- 3D;
-- anime;
-- Pixar;
-- videojuego.
+        Puede aparecer:
 
-El resultado debe ser visualmente atractivo sin convertirse en una ilustración hipercompleja.
+        - investigando
+        - observando
+        - señalando
+        - comparando
+        - reaccionando
+        - caminando
+        - examinando objetos
+        - interactuando con metáforas visuales
+        - apareciendo pequeño dentro de una composición amplia
 
-========================================
-PERSONAJES
-========================================
+        También puede estar completamente ausente cuando la escena funcione mejor sin él.
 
-Existen dos tipos de personajes.
+        ==================================================
+        4. PERSONAJES GENÉRICOS
+        ==================================================
 
-DETECTIVE:
+        Los generic stickmen son figuras humanas anónimas.
 
-Es el personaje recurrente del canal.
+        Deben ser extremadamente simples:
 
-Es un stickman detective con:
+        - cabeza circular
+        - cuerpo y extremidades simples
+        - sin ropa distintiva
+        - sin sombrero
+        - sin gabardina
+        - sin lupa
+        - sin accesorios de Detective
 
-- cabeza circular blanca;
-- ojos negros sencillos;
-- boca sencilla y expresiva;
-- gabardina negra;
-- sombrero fedora negro;
-- cuerpo delgado;
-- lupa cuando sea apropiado.
+        Nunca conviertas un generic stickman en el Detective.
 
-Las referencias del Detective sirven exclusivamente para conservar su identidad visual.
+        El Detective y los generic stickmen deben ser visualmente distinguibles.
 
-No debes copiar el encuadre de las referencias.
+        ==================================================
+        5. CHARACTER ROLE
+        ==================================================
 
-El Detective NO debe dominar automáticamente la imagen.
+        Cada escena debe utilizar exactamente uno de estos valores:
 
-Normalmente debe ocupar aproximadamente entre un 15% y un 40% de la altura de la imagen.
+        none
+        generic_stickmen
+        detective
+        detective_and_generic_stickmen
 
-En planos muy abiertos puede ser mucho más pequeño.
+        Reglas:
 
-Úsalo cuando aporte algo narrativamente.
+        none:
+        No aparecen personajes.
 
-GENERIC STICKMEN:
+        generic_stickmen:
+        Aparecen únicamente personas genéricas.
 
-Son personajes anónimos.
+        detective:
+        Aparece el Detective.
 
-Deben ser simples figuras stickman con:
+        detective_and_generic_stickmen:
+        Aparecen el Detective y uno o varios generic stickmen.
 
-- cabeza circular;
-- cuerpo lineal;
-- apariencia anónima;
-- sin ropa característica;
-- sin sombrero;
-- sin lupa;
-- sin accesorios de detective;
-- sin elementos que puedan confundirlos con el Detective.
+        Utiliza "none" cuando una metáfora, objeto, edificio, máquina, gráfico conceptual o entorno sea visualmente más potente sin personajes.
 
-MUY IMPORTANTE:
+        ==================================================
+        6. TIPOS DE PLANO
+        ==================================================
 
-Cuando una escena utilice generic_stickmen, NO debe parecer que todos son versiones del Detective.
+        Utiliza únicamente estos valores:
 
-========================================
-CHARACTER ROLE
-========================================
+        wide_establishing
+        wide
+        medium_wide
+        medium
+        close_up
+        extreme_close_up
+        top_down
+        low_angle
 
-Cada escena debe elegir exactamente uno:
+        Prioriza:
 
-none
-generic_stickmen
-detective
-detective_and_generic_stickmen
+        wide_establishing
+        wide
+        medium_wide
+        medium
 
-Usa:
+        Utiliza close_up y extreme_close_up solamente cuando tengan una función narrativa clara.
 
-none
-cuando no sea necesario mostrar personajes.
+        Varía los planos.
 
-generic_stickmen
-cuando quieras representar personas anónimas, trabajadores, consumidores, inversores, ciudadanos, políticos genéricos, etc.
+        No hagas que todas las escenas tengan el mismo encuadre.
 
-detective
-cuando el Detective sea el protagonista visual.
+        ==================================================
+        7. DIRECCIÓN VISUAL
+        ==================================================
 
-detective_and_generic_stickmen
-cuando necesites al Detective junto a otros personajes anónimos.
+        El estilo global del canal es:
 
-No uses al Detective simplemente porque existe en el canal.
+        "Editorial cartoon illustration with a minimalist stickman visual language."
 
-========================================
-COMPOSICIÓN
-========================================
+        La dirección visual debe sentirse como un universo gráfico coherente y adulto.
 
-Cada escena debe elegir un tipo de plano:
+        Las imágenes deben tener:
 
-wide_establishing
-wide
-medium_wide
-medium
-close_up
-extreme_close_up
-top_down
-low_angle
+        - composición editorial
+        - líneas negras limpias y controladas
+        - formas geométricas simplificadas
+        - siluetas expresivas
+        - detalle visual moderado
+        - profundidad
+        - perspectiva
+        - superposición de elementos
+        - contraste de escala
+        - composición asimétrica cuando resulte apropiado
+        - foco visual claro
+        - humor visual sutil
 
-Prioriza:
+        La imagen NO debe parecer:
 
-wide_establishing
-wide
-medium_wide
-medium
+        - infantil
+        - kawaii
+        - chibi
+        - de preescolar
+        - un dibujo de libro infantil
+        - anime
+        - manga
+        - Pixar
+        - Disney
+        - 3D
+        - fotorealista
+        - render 3D
+        - una ilustración hiperrealista
 
-Utiliza close_up y extreme_close_up solamente cuando aporten impacto.
+        No diseñes escenas vacías o excesivamente minimalistas.
 
-Busca composiciones donde el espectador pueda entender rápidamente:
+        Tampoco llenes la imagen de detalles sin función.
 
-- cuál es el elemento principal;
-- qué está ocurriendo;
-- dónde debe mirar;
-- qué relación existe entre los elementos.
+        Busca un nivel de complejidad MEDIO.
 
-========================================
-METÁFORAS VISUALES
-========================================
+        ==================================================
+        8. METÁFORAS VISUALES
+        ==================================================
 
-Cuando sea apropiado, utiliza metáforas visuales editoriales.
+        Prioriza metáforas visuales cuando ayuden a explicar el concepto.
 
-Ejemplos:
+        Ejemplos:
 
-- una economía atrapada dentro de una caja de cristal;
-- un enorme mecanismo de tipos de interés;
-- un stickman intentando subir una montaña de facturas;
-- una subasta caótica representando los mercados;
-- una balanza entre deuda y crecimiento;
-- un edificio corporativo proyectando una enorme sombra;
-- una carretera formada por un gráfico bursátil;
-- una impresora gigante de dinero;
-- una empresa representada como un barco durante una tormenta.
+        - tipos de interés como una máquina gigantesca
+        - deuda como una montaña
+        - inflación como una cinta transportadora que acelera
+        - mercado como una subasta caótica
+        - economía dentro de una caja de cristal
+        - deuda y crecimiento enfrentados en una balanza
+        - una empresa como un barco durante una tormenta
+        - un gráfico convertido en carretera
+        - una impresora de dinero funcionando sin parar
+        - una empresa proyectando una enorme sombra
+        - un personaje intentando escalar una montaña de facturas
 
-No fuerces una metáfora si una representación directa es mejor.
+        No uses metáforas arbitrarias.
 
-========================================
-DATOS Y TEXTO
-========================================
+        La metáfora debe ayudar a comprender la narración.
 
-No inventes texto visible dentro de las imágenes.
+        Evita representar literalmente cada concepto cuando una metáfora editorial resulte más interesante.
 
-No dependas de que FLUX escriba correctamente:
+        ==================================================
+        9. COMPOSICIÓN
+        ==================================================
 
-- porcentajes;
-- cifras;
-- nombres;
-- titulares;
-- etiquetas;
-- tablas;
-- gráficos;
-- flechas;
-- estadísticas.
+        Piensa como un director de arte.
 
-Cuando la imagen necesite información exacta, indícalo en manual_elements para añadirlo posteriormente en postproducción.
+        Cada escena debe tener:
 
-========================================
-IMAGE PROMPT
-========================================
+        - sujeto principal
+        - contexto
+        - profundidad
+        - jerarquía visual
+        - punto focal
 
-image_prompt debe estar en inglés.
+        Utiliza foreground, midground y background cuando resulte apropiado.
 
-Debe describir únicamente la escena concreta:
+        Evita colocar todos los elementos alineados horizontalmente.
 
-- sujeto;
-- acción;
-- entorno;
-- objetos;
-- composición;
-- cámara;
-- metáfora;
-- jerarquía visual.
+        Evita poner siempre al personaje en el centro.
 
-No escribas un Style Bible enorme dentro de cada prompt.
+        Utiliza escala, perspectiva y diagonales para crear interés.
 
-El sistema añadirá posteriormente el estilo visual global.
+        En planos amplios, el Detective puede ocupar solamente una pequeña parte de la imagen.
 
-El prompt debe ser específico y visual.
+        No conviertas cada escena en una ficha de personaje.
 
-Evita prompts genéricos como:
+        ==================================================
+        10. TEXTO Y DATOS EN LAS IMÁGENES
+        ==================================================
 
-"stickman in an office".
+        NO generes texto largo dentro de las imágenes.
 
-Prefiere algo equivalente a:
+        NO generes:
 
-"Wide editorial scene inside a stylized central bank control room. An enormous mechanical interest-rate lever dominates the center of the room while several anonymous stickmen struggle to move it. The Detective appears small in the lower-right corner examining the mechanism with his magnifying glass. Strong depth with foreground machinery, a large central mechanism and simplified architectural elements in the background."
+        - párrafos
+        - titulares
+        - subtítulos
+        - interfaces falsas
+        - tablas con datos inventados
+        - porcentajes inventados
+        - etiquetas inventadas
+        - gráficos con cifras inventadas
 
-========================================
-PRODUCCIÓN
-========================================
+        Cuando un dato exacto, porcentaje, palabra, flecha, etiqueta o gráfico sea importante, indícalo en "manual_elements".
 
-manual_elements contiene únicamente elementos que deberían añadirse o corregirse posteriormente porque requieren precisión.
+        Estos elementos se añadirán posteriormente en postproducción.
 
-Ejemplos:
+        La imagen generada debe funcionar como estructura visual.
 
-- "Añadir 4.5% junto al indicador de inflación."
-- "Añadir nombre de la empresa sobre el edificio."
-- "Añadir flecha descendente roja."
-- "Añadir valores exactos del gráfico."
+        ==================================================
+        11. IMAGE PROMPT
+        ==================================================
 
-animation_notes puede indicar movimientos simples:
+        image_prompt debe describir únicamente la dirección visual específica
+        de esta escena.
 
-- zoom;
-- pan;
-- desplazamiento;
-- aparición de elementos;
-- énfasis.
+        Máximo 2 frases.
 
-production_notes contiene observaciones útiles para edición.
+        Debe indicar:
 
-========================================
-IMPORTANTE
-========================================
+        - elementos principales
+        - acción
+        - composición
+        - perspectiva
+        - profundidad cuando sea relevante
+        - metáfora visual cuando sea necesaria
 
-La narración de las escenas debe cubrir todo el guion.
+        NO repitas el Style Bible.
 
-No omitas partes importantes.
+        NO describas las características generales del Detective si ya están
+        definidas globalmente.
 
-No inventes acontecimientos.
+        NO escribas instrucciones técnicas para FLUX.
 
-No hagas todas las escenas visualmente iguales.
+        NO escribas párrafos explicativos.
 
-Prioriza variedad, metáforas, profundidad y composición editorial.
+        El prompt debe ser compacto y específico.
 
-Devuelve exclusivamente el JSON solicitado.
-PROMPT;
+        ==================================================
+        12. VISUAL DESCRIPTION
+        ==================================================
+
+        visual_description debe describir brevemente qué debe verse.
+
+        Máximo 2 frases.
+
+        Debe incluir únicamente:
+
+        - sujeto principal
+        - entorno
+        - acción
+        - composición relevante
+
+        No escribas explicaciones largas.
+
+        No repitas la narración.
+
+        No repitas las reglas globales del estilo.
+
+        ==================================================
+        13. VISUAL METAPHOR
+        ==================================================
+
+        visual_metaphor debe resumir el concepto visual en una sola frase corta.
+
+        Máximo aproximadamente 15 palabras.
+
+        No expliques la metáfora.
+
+        Si la escena no necesita una metáfora, utiliza una descripción conceptual sencilla.
+
+        No fuerces metáforas absurdas.
+
+        ==================================================
+        14. MANUAL ELEMENTS
+        ==================================================
+
+        manual_elements contiene únicamente elementos que deben añadirse
+        posteriormente en postproducción.
+
+        Ejemplos:
+
+        - cifra exacta
+        - porcentaje
+        - nombre
+        - ticker
+        - etiqueta
+        - flecha
+        - gráfico
+        - dato estadístico
+
+        Máximo 3 elementos por escena.
+
+        Si no son necesarios:
+
+        []
+
+        ==================================================
+        15. ANIMATION NOTES
+        ==================================================
+
+        animation_notes debe contener una única indicación breve de animación.
+
+        Máximo una frase.
+
+        Ejemplos:
+
+        - Zoom lento hacia el objeto principal.
+        - Movimiento lateral de cámara.
+        - Aparición progresiva del elemento principal.
+        - Mantener imagen estática.
+
+        ==================================================
+        16. NARRACIÓN Y VISUAL
+        ==================================================
+
+        La imagen debe reforzar la narración.
+
+        No generes una escena genérica que simplemente represente "economía", "dinero" o "mercados".
+
+        Cada escena debe tener una razón concreta para existir.
+
+        La narración debe determinar la dirección visual.
+
+        ==================================================
+        17. CONSISTENCIA
+        ==================================================
+
+        Mantén coherencia entre escenas:
+
+        - mismo universo visual
+        - misma lógica de personajes
+        - misma identidad del Detective
+        - misma escala visual
+        - misma filosofía editorial
+
+        Sin embargo, evita repetir composiciones.
+
+        La variedad visual es importante.
+
+        ==================================================
+        18. RESTRICCIÓN DE SALIDA
+        ==================================================
+
+        Devuelve exclusivamente el JSON solicitado por el esquema.
+
+        No escribas explicaciones fuera del JSON.
+
+        No añadas campos innecesarios.
+
+        No añadas objetos adicionales.
+
+        No repitas información global en cada escena.
+
+        La respuesta debe ser concisa y eficiente en tokens.
+
+        ==================================================
+        19. PRIORIDAD
+        ==================================================
+
+        Prioridad de decisión:
+
+        1. Fidelidad a la fuente.
+        2. Calidad narrativa.
+        3. Claridad visual.
+        4. Variedad de escenas.
+        5. Coherencia del universo visual.
+        6. Facilidad de producción.
+        7. Eficiencia en tokens.
+
+    PROMPT;
     }
 
     private function buildUserPrompt(
@@ -481,86 +605,88 @@ PROMPT;
         string $transcript
     ): string {
         return <<<PROMPT
-Crea el contenido completo del siguiente vídeo.
+    Crea el contenido completo del vídeo a partir de la siguiente información.
 
-PROYECTO:
-{$project->name}
+    PROYECTO:
+    {$project->name}
 
-TÍTULO DE LA FUENTE:
-{$project->source_title}
+    TÍTULO DE LA FUENTE:
+    {$project->source_title}
 
-URL:
-{$project->source_url}
+    URL DE LA FUENTE:
+    {$project->source_url}
 
-TRANSCRIPCIÓN:
-{$transcript}
+    TRANSCRIPCIÓN / FUENTE:
+    {$transcript}
 
-Genera:
+    Genera:
 
-- título principal;
-- títulos alternativos;
-- descripción;
-- keywords;
-- hashtags;
-- concepto de miniatura;
-- texto de miniatura;
-- hook;
-- guion completo;
-- estructura;
-- 40–50 escenas;
-- información de producción.
+    1. Metadatos de YouTube.
+    2. Hook.
+    3. Guion completo.
+    4. Estructura narrativa.
+    5. Storyboard de aproximadamente 35–45 escenas.
 
-La narración de las escenas debe corresponder al guion completo.
+    El storyboard debe seguir exactamente las reglas visuales establecidas en el system prompt.
 
-Las escenas deben ser visualmente variadas y seguir las reglas del sistema.
+    No repitas el Style Bible dentro de cada image_prompt.
 
-No añadas explicaciones fuera del JSON.
-PROMPT;
+    Prioriza escenas visualmente diferentes, útiles y producidles.
+
+    Devuelve únicamente el JSON solicitado.
+    PROMPT;
     }
 
     private function getOutputSchema(): array
     {
         return [
             'type' => 'object',
-
             'additionalProperties' => false,
 
             'properties' => [
                 'video' => [
                     'type' => 'object',
                     'additionalProperties' => false,
+
                     'properties' => [
                         'title' => [
                             'type' => 'string',
                         ],
+
                         'alternative_titles' => [
                             'type' => 'array',
                             'items' => [
                                 'type' => 'string',
                             ],
                         ],
+
                         'description' => [
                             'type' => 'string',
                         ],
+
                         'keywords' => [
                             'type' => 'array',
                             'items' => [
                                 'type' => 'string',
                             ],
                         ],
+
                         'hashtags' => [
                             'type' => 'array',
                             'items' => [
                                 'type' => 'string',
                             ],
                         ],
+
                         'thumbnail_concept' => [
                             'type' => 'string',
                         ],
+
                         'thumbnail_text' => [
                             'type' => 'string',
                         ],
                     ],
+
                     'required' => [
                         'title',
                         'alternative_titles',
@@ -575,13 +701,16 @@ PROMPT;
                 'content' => [
                     'type' => 'object',
                     'additionalProperties' => false,
+
                     'properties' => [
                         'hook' => [
                             'type' => 'string',
                         ],
+
                         'script' => [
                             'type' => 'string',
                         ],
+
                         'structure' => [
                             'type' => 'array',
                             'items' => [
@@ -589,6 +718,7 @@ PROMPT;
                             ],
                         ],
                     ],
+
                     'required' => [
                         'hook',
                         'script',
@@ -598,63 +728,62 @@ PROMPT;
 
                 'scenes' => [
                     'type' => 'array',
+
                     'items' => [
                         'type' => 'object',
                         'additionalProperties' => false,
+
                         'properties' => [
                             'order' => [
                                 'type' => 'integer',
                             ],
+
                             'narration' => [
                                 'type' => 'string',
                             ],
+
                             'visual_description' => [
                                 'type' => 'string',
                             ],
-                            'background' => [
-                                'type' => 'string',
-                            ],
-                            'characters' => [
-                                'type' => 'string',
-                            ],
+
                             'character_role' => [
                                 'type' => 'string',
                             ],
-                            'camera' => [
+
+                            'shot_type' => [
                                 'type' => 'string',
                             ],
+
                             'visual_metaphor' => [
                                 'type' => 'string',
                             ],
+
                             'image_prompt' => [
                                 'type' => 'string',
                             ],
+
                             'manual_elements' => [
                                 'type' => 'array',
                                 'items' => [
                                     'type' => 'string',
                                 ],
                             ],
+
                             'animation_notes' => [
                                 'type' => 'string',
                             ],
-                            'production_notes' => [
-                                'type' => 'string',
-                            ],
                         ],
+
                         'required' => [
                             'order',
                             'narration',
                             'visual_description',
-                            'background',
-                            'characters',
                             'character_role',
-                            'camera',
+                            'shot_type',
                             'visual_metaphor',
                             'image_prompt',
                             'manual_elements',
                             'animation_notes',
-                            'production_notes',
                         ],
                     ],
                 ],
@@ -670,126 +799,244 @@ PROMPT;
 
     private function validateResponse(array $data): void
     {
-        foreach ([
-            'video',
-            'content',
-            'scenes',
-        ] as $section) {
+        /*
+        * Estructura principal.
+        */
+        foreach (['video', 'content', 'scenes'] as $section) {
             if (!array_key_exists($section, $data)) {
-                throw new RuntimeException(
-                    "La respuesta de Claude no contiene la sección '{$section}'."
+                throw new \RuntimeException(
+                    "La respuesta de Claude no contiene la sección requerida: {$section}."
                 );
             }
         }
 
+        /*
+        * Video.
+        */
         if (!is_array($data['video'])) {
-            throw new RuntimeException(
-                'La sección video no es válida.'
+            throw new \RuntimeException(
+                'La sección "video" no tiene un formato válido.'
             );
         }
 
+        foreach (
+            [
+                'title',
+                'alternative_titles',
+                'description',
+                'keywords',
+                'hashtags',
+                'thumbnail_concept',
+                'thumbnail_text',
+            ] as $field
+        ) {
+            if (!array_key_exists($field, $data['video'])) {
+                throw new \RuntimeException(
+                    "Falta el campo video.{$field}."
+                );
+            }
+        }
+
+        /*
+        * Content.
+        */
         if (!is_array($data['content'])) {
-            throw new RuntimeException(
-                'La sección content no es válida.'
+            throw new \RuntimeException(
+                'La sección "content" no tiene un formato válido.'
             );
         }
 
+        foreach (
+            ['hook', 'script', 'structure'] as $field
+        ) {
+            if (!array_key_exists($field, $data['content'])) {
+                throw new \RuntimeException(
+                    "Falta el campo content.{$field}."
+                );
+            }
+        }
+
+        /*
+        * Script.
+        */
+        if (
+            !is_string($data['content']['script'])
+            || trim($data['content']['script']) === ''
+        ) {
+            throw new \RuntimeException(
+                'Claude no ha generado un guion válido.'
+            );
+        }
+
+        /*
+        * Scenes.
+        */
         if (!is_array($data['scenes'])) {
-            throw new RuntimeException(
-                'La sección scenes no es válida.'
+            throw new \RuntimeException(
+                'La sección "scenes" no tiene un formato válido.'
             );
         }
 
         $sceneCount = count($data['scenes']);
 
-        if ($sceneCount < 30 || $sceneCount > 60) {
-            throw new RuntimeException(
-                "Claude ha generado {$sceneCount} escenas. "
-                . 'Se esperaban entre 30 y 60.'
+        /*
+        * No permitimos una respuesta absurda por defecto.
+        *
+        * No exigimos 35 escenas exactas porque la calidad debe
+        * prevalecer sobre una cifra rígida.
+        */
+        if ($sceneCount < 25) {
+            throw new \RuntimeException(
+                "Claude solo ha generado {$sceneCount} escenas. "
+                . 'Se esperaban al menos 25 escenas para este tipo de vídeo.'
             );
         }
 
+        if ($sceneCount > 40) {
+            throw new \RuntimeException(
+                "Claude ha generado {$sceneCount} escenas. "
+                . 'El máximo permitido es 40 para mantener el storyboard eficiente.'
+            );
+        }
+
+        /*
+        * Valores permitidos.
+        */
+        $allowedCharacterRoles = [
+            'none',
+            'generic_stickmen',
+            'detective',
+            'detective_and_generic_stickmen',
+        ];
+
+        $allowedShotTypes = [
+            'wide_establishing',
+            'wide',
+            'medium_wide',
+            'medium',
+            'close_up',
+            'extreme_close_up',
+            'top_down',
+            'low_angle',
+        ];
+
+        /*
+        * Validación individual.
+        */
         foreach ($data['scenes'] as $index => $scene) {
+            $sceneNumber = $index + 1;
+
             if (!is_array($scene)) {
-                throw new RuntimeException(
-                    "La escena {$index} no es válida."
+                throw new \RuntimeException(
+                    "La escena {$sceneNumber} no es un objeto válido."
                 );
             }
 
-            foreach ([
-                'order',
-                'narration',
-                'visual_description',
-                'character_role',
-                'camera',
-                'image_prompt',
-            ] as $field) {
+            foreach (
+                [
+                    'order',
+                    'narration',
+                    'visual_description',
+                    'character_role',
+                    'shot_type',
+                    'visual_metaphor',
+                    'image_prompt',
+                    'manual_elements',
+                    'animation_notes',
+                ] as $field
+            ) {
                 if (!array_key_exists($field, $scene)) {
-                    throw new RuntimeException(
-                        "La escena {$index} no contiene '{$field}'."
+                    throw new \RuntimeException(
+                        "La escena {$sceneNumber} no contiene el campo requerido: {$field}."
                     );
                 }
             }
 
-            $role = $scene['character_role'];
-
-            if (!in_array($role, [
-                'none',
-                'generic_stickmen',
-                'detective',
-                'detective_and_generic_stickmen',
-            ], true)) {
-                throw new RuntimeException(
-                    "La escena {$index} tiene un character_role inválido: {$role}"
-                );
-            }
-
-            $camera = $scene['camera'];
-
-            if (!in_array($camera, Scene::SHOT_TYPES, true)) {
-                throw new RuntimeException(
-                    "La escena {$index} tiene un camera inválido: {$camera}"
-                );
-            }
-
+            /*
+            * Narración.
+            */
             if (
                 !is_string($scene['narration'])
                 || trim($scene['narration']) === ''
             ) {
-                throw new RuntimeException(
-                    "La escena {$index} no contiene narración."
+                throw new \RuntimeException(
+                    "La escena {$sceneNumber} no contiene una narración válida."
                 );
             }
 
+            /*
+            * Dirección visual.
+            */
+            if (
+                !is_string($scene['visual_description'])
+                || trim($scene['visual_description']) === ''
+            ) {
+                throw new \RuntimeException(
+                    "La escena {$sceneNumber} no contiene una visual_description válida."
+                );
+            }
+
+            /*
+            * Character role.
+            */
+            if (
+                !in_array(
+                    $scene['character_role'],
+                    $allowedCharacterRoles,
+                    true
+                )
+            ) {
+                throw new \RuntimeException(
+                    "La escena {$sceneNumber} contiene un character_role inválido: "
+                    . json_encode($scene['character_role'])
+                );
+            }
+
+            /*
+            * Shot type.
+            */
+            if (
+                !in_array(
+                    $scene['shot_type'],
+                    $allowedShotTypes,
+                    true
+                )
+            ) {
+                throw new \RuntimeException(
+                    "La escena {$sceneNumber} contiene un shot_type inválido: "
+                    . json_encode($scene['shot_type'])
+                );
+            }
+
+            /*
+            * Image prompt.
+            */
             if (
                 !is_string($scene['image_prompt'])
                 || trim($scene['image_prompt']) === ''
             ) {
-                throw new RuntimeException(
-                    "La escena {$index} no contiene image_prompt."
+                throw new \RuntimeException(
+                    "La escena {$sceneNumber} no contiene un image_prompt válido."
                 );
             }
-        }
 
-        $script = trim(
-            (string) ($data['content']['script'] ?? '')
-        );
+            /*
+            * Manual elements.
+            */
+            if (!is_array($scene['manual_elements'])) {
+                throw new \RuntimeException(
+                    "La escena {$sceneNumber} tiene manual_elements inválido."
+                );
+            }
 
-        if ($script === '') {
-            throw new RuntimeException(
-                'Claude no ha generado ningún guion.'
-            );
-        }
-
-        $wordCount = str_word_count(
-            strip_tags($script)
-        );
-
-        if ($wordCount < 900 || $wordCount > 1800) {
-            throw new RuntimeException(
-                "El guion generado tiene {$wordCount} palabras. "
-                . 'Se esperaba aproximadamente entre 900 y 1800.'
-            );
+            /*
+            * Animation notes.
+            */
+            if (!is_string($scene['animation_notes'])) {
+                throw new \RuntimeException(
+                    "La escena {$sceneNumber} tiene animation_notes inválido."
+                );
+            }
         }
     }
 
@@ -894,19 +1141,89 @@ PROMPT;
         return '';
     }
 
-    private function sanitizeJsonControlCharacters(
-        string $text
-    ): string {
-        return preg_replace_callback(
-            '/[\x00-\x1F\x7F]/',
-            function ($match) {
-                return match ($match[0]) {
-                    "\n", "\r", "\t" => $match[0],
-                    default => '',
-                };
-            },
-            $text
-        );
+    private function sanitizeJsonControlCharacters(string $json): string
+    {
+        $result = '';
+
+        $inString = false;
+        $escaped = false;
+
+        $length = strlen($json);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $json[$i];
+
+            /*
+            * Si estamos después de una barra invertida,
+            * el carácter forma parte de una secuencia JSON
+            * como \n, \", \\ o \uXXXX.
+            */
+            if ($escaped) {
+                $result .= $char;
+                $escaped = false;
+
+                continue;
+            }
+
+            /*
+            * Detectamos una barra invertida dentro de un string.
+            */
+            if ($char === '\\') {
+                $result .= $char;
+
+                if ($inString) {
+                    $escaped = true;
+                }
+
+                continue;
+            }
+
+            /*
+            * Detectamos entrada/salida de un string JSON.
+            */
+            if ($char === '"') {
+                $result .= $char;
+                $inString = !$inString;
+
+                continue;
+            }
+
+            /*
+            * Los caracteres de control solamente son problemáticos
+            * cuando aparecen dentro de un string JSON.
+            */
+            if ($inString) {
+                $ord = ord($char);
+
+                if ($char === "\n") {
+                    $result .= '\\n';
+
+                    continue;
+                }
+
+                if ($char === "\r") {
+                    $result .= '\\r';
+
+                    continue;
+                }
+
+                if ($char === "\t") {
+                    $result .= '\\t';
+
+                    continue;
+                }
+
+                if ($ord < 32) {
+                    $result .= sprintf('\\u%04x', $ord);
+
+                    continue;
+                }
+            }
+
+            $result .= $char;
+        }
+
+        return $result;
     }
 
     private function throwApiException($response): never

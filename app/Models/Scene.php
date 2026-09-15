@@ -39,13 +39,20 @@ class Scene extends Model
         'project_id',
         'order',
         'narration',
+
+        // Dirección visual
         'visual_description',
         'character_role',
-        'visual_metaphor',
         'shot_type',
+        'visual_metaphor',
+        'visual_priority',
+
+        // Generación
         'image_prompt',
         'image_path',
         'image_status',
+
+        // Producción
         'manual_elements',
         'animation_notes',
         'production_notes',
@@ -55,23 +62,12 @@ class Scene extends Model
     {
         return [
             'manual_elements' => 'array',
+            'visual_priority' => 'array',
         ];
     }
 
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
-    }
-
-    public function usesDetective(): bool
-    {
-        return in_array(
-            $this->character_role,
-            [
-                'detective',
-                'detective_and_generic_stickmen',
-            ],
-            true
-        );
     }
 }

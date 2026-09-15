@@ -44,58 +44,175 @@ class StoryboardService
             $project->scenes()->delete();
 
             foreach ($data['scenes'] as $index => $scene) {
-                $visualDescription = trim(
-                    (string) ($scene['visual_description'] ?? '')
-                );
+                if (!is_array($scene)) {
+                    continue;
+                }
 
-                $characterRole = $this->normalizeCharacterRole(
-                    $scene['character_role'] ?? 'none'
-                );
+                /*
+                 * Nuevo formato:
+                 *
+                 * {
+                 *   "order": 1,
+                 *   "narration": "...",
+                 *   "visual_description": "...",
+                 *   "character_role": "detective",
+                 *   "shot_type": "medium_wide",
+                 *   "visual_metaphor": "...",
+                 *   "image_prompt": "...",
+                 *   "manual_elements": [],
+                 *   "animation_notes": "..."
+                 * }
+                 *
+                 * También soportamos temporalmente el formato antiguo
+                 * con "visual" y "production".
+                 */
 
-                $shotType = $this->normalizeShotType(
-                    $scene['camera'] ?? null
-                );
+                $visual = is_array($scene['visual'] ?? null)
+                    ? $scene['visual']
+                    : [];
 
-                $manualElements = $scene['manual_elements'] ?? [];
+                $production = is_array($scene['production'] ?? null)
+                    ? $scene['production']
+                    : [];
+
+                /*
+                 * Dirección visual
+                 */
+
+                $visualDescription = $scene['visual_description']
+                    ?? $visual['description']
+                    ?? null;
+
+                $characterRole = $scene['character_role']
+                    ?? $visual['character_role']
+                    ?? 'none';
+
+                $shotType = $scene['shot_type']
+                    ?? $visual['shot_type']
+                    ?? $visual['camera']
+                    ?? 'medium';
+
+                $visualMetaphor = $scene['visual_metaphor']
+                    ?? $visual['visual_metaphor']
+                    ?? null;
+
+                /*
+                 * Producción
+                 */
+
+                $manualElements = $scene['manual_elements']
+                    ?? $production['manual_elements']
+                    ?? [];
 
                 if (!is_array($manualElements)) {
                     $manualElements = [];
                 }
 
-                $project->scenes()->create([
-                    'order' => (int) ($scene['order'] ?? ($index + 1)),
+                $animationNotes = $scene['animation_notes']
+                    ?? null;
 
-                    'narration' => trim(
-                        (string) ($scene['narration'] ?? '')
+                /*
+                 * Compatibilidad con el formato antiguo.
+                 */
+
+                if (
+                    $animationNotes === null
+                    && isset($production['animation'])
+                    && is_array($production['animation'])
+                ) {
+                    $animationNotes = $this->formatAnimationNotes(
+                        $production['animation']
+                    );
+                }
+
+                /*
+                 * Validamos los valores controlados.
+                 *
+                 * Si Claude devuelve algo inesperado, no dejamos que
+                 * contamine la base de datos.
+                 */
+
+                if (
+                    !in_array(
+                        $characterRole,
+                        Scene::CHARACTER_ROLES,
+                        true
+                    )
+                ) {
+                    $characterRole = 'none';
+                }
+
+                if (
+                    !in_array(
+                        $shotType,
+                        Scene::SHOT_TYPES,
+                        true
+                    )
+                ) {
+                    $shotType = 'medium';
+                }
+
+                /*
+                 * Normalización.
+                 */
+
+                $manualElements = array_values(
+                    array_filter(
+                        array_map(
+                            fn ($item) => trim((string) $item),
+                            $manualElements
+                        )
+                    )
+                );
+
+                $project->scenes()->create([
+                    'order' => (int) (
+                        $scene['order']
+                        ?? ($index + 1)
                     ),
 
-                    'visual_description' => $visualDescription !== ''
-                        ? $visualDescription
+                    'narration' => trim(
+                        (string) (
+                            $scene['narration']
+                            ?? ''
+                        )
+                    ),
+
+                    'visual_description' => $visualDescription !== null
+                        ? trim((string) $visualDescription)
                         : null,
 
                     'character_role' => $characterRole,
 
-                    'visual_metaphor' => $this->nullableString(
-                        $scene['visual_metaphor'] ?? null
-                    ),
-
                     'shot_type' => $shotType,
 
-                    'image_prompt' => $this->nullableString(
-                        $scene['image_prompt'] ?? null
-                    ),
+                    'visual_metaphor' => $visualMetaphor !== null
+                        ? trim((string) $visualMetaphor)
+                        : null,
+
+                    /*
+                     * visual_priority queda preparado en DB,
+                     * pero todavía no obligamos a Claude a generarlo.
+                     */
+                    'visual_priority' => null,
+
+                    'image_prompt' => isset($scene['image_prompt'])
+                        ? trim((string) $scene['image_prompt'])
+                        : null,
 
                     'image_status' => 'pending',
 
                     'manual_elements' => $manualElements,
 
-                    'animation_notes' => $this->nullableString(
-                        $scene['animation_notes'] ?? null
-                    ),
+                    'animation_notes' => $animationNotes !== null
+                        ? trim((string) $animationNotes)
+                        : null,
 
-                    'production_notes' => $this->nullableString(
-                        $scene['production_notes'] ?? null
-                    ),
+                    'production_notes' => isset(
+                        $production['notes']
+                    )
+                        ? trim((string) $production['notes'])
+                        : null,
                 ]);
             }
 
@@ -107,45 +224,29 @@ class StoryboardService
         return $project->refresh();
     }
 
-    private function normalizeCharacterRole(mixed $value): string
+    private function formatAnimationNotes(array $animation): ?string
     {
-        $value = strtolower(trim((string) $value));
+        $animation = array_values(
+            array_filter(
+                array_map(
+                    fn ($item) => trim((string) $item),
+                    $animation
+                )
+            )
+        );
 
-        if (!in_array($value, Scene::CHARACTER_ROLES, true)) {
-            return 'none';
-        }
-
-        return $value;
-    }
-
-    private function normalizeShotType(mixed $value): ?string
-    {
-        if ($value === null) {
+        if (empty($animation)) {
             return null;
         }
 
-        $value = strtolower(trim((string) $value));
-
-        if ($value === '') {
-            return null;
-        }
-
-        if (in_array($value, Scene::SHOT_TYPES, true)) {
-            return $value;
-        }
-
-        return 'medium_wide';
-    }
-
-    private function nullableString(mixed $value): ?string
-    {
-        if ($value === null) {
-            return null;
-        }
-
-        $value = trim((string) $value);
-
-        return $value === '' ? null : $value;
+        return implode(
+            "\n",
+            array_map(
+                fn ($item, $index) => ($index + 1) . '. ' . $item,
+                $animation,
+                array_keys($animation)
+            )
+        );
     }
 
     public function reorder(
