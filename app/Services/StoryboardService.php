@@ -21,7 +21,6 @@ class StoryboardService
         }
 
         $json = Storage::disk('local')->get($path);
-
         $data = json_decode($json, true);
 
         if (!is_array($data)) {
@@ -48,25 +47,6 @@ class StoryboardService
                     continue;
                 }
 
-                /*
-                 * Nuevo formato:
-                 *
-                 * {
-                 *   "order": 1,
-                 *   "narration": "...",
-                 *   "visual_description": "...",
-                 *   "character_role": "detective",
-                 *   "shot_type": "medium_wide",
-                 *   "visual_metaphor": "...",
-                 *   "image_prompt": "...",
-                 *   "manual_elements": [],
-                 *   "animation_notes": "..."
-                 * }
-                 *
-                 * También soportamos temporalmente el formato antiguo
-                 * con "visual" y "production".
-                 */
-
                 $visual = is_array($scene['visual'] ?? null)
                     ? $scene['visual']
                     : [];
@@ -74,10 +54,6 @@ class StoryboardService
                 $production = is_array($scene['production'] ?? null)
                     ? $scene['production']
                     : [];
-
-                /*
-                 * Dirección visual
-                 */
 
                 $visualDescription = $scene['visual_description']
                     ?? $visual['description']
@@ -96,24 +72,16 @@ class StoryboardService
                     ?? $visual['visual_metaphor']
                     ?? null;
 
-                /*
-                 * Producción
-                 */
-
                 $manualElements = $scene['manual_elements']
                     ?? $production['manual_elements']
                     ?? [];
 
-                if (!is_array($manualElements)) {
-                    $manualElements = [];
-                }
+                $manualElements = $this->normalizeManualElements(
+                    $manualElements
+                );
 
                 $animationNotes = $scene['animation_notes']
                     ?? null;
-
-                /*
-                 * Compatibilidad con el formato antiguo.
-                 */
 
                 if (
                     $animationNotes === null
@@ -124,13 +92,6 @@ class StoryboardService
                         $production['animation']
                     );
                 }
-
-                /*
-                 * Validamos los valores controlados.
-                 *
-                 * Si Claude devuelve algo inesperado, no dejamos que
-                 * contamine la base de datos.
-                 */
 
                 if (
                     !in_array(
@@ -151,19 +112,6 @@ class StoryboardService
                 ) {
                     $shotType = 'medium';
                 }
-
-                /*
-                 * Normalización.
-                 */
-
-                $manualElements = array_values(
-                    array_filter(
-                        array_map(
-                            fn ($item) => trim((string) $item),
-                            $manualElements
-                        )
-                    )
-                );
 
                 $project->scenes()->create([
                     'order' => (int) (
@@ -190,10 +138,6 @@ class StoryboardService
                         ? trim((string) $visualMetaphor)
                         : null,
 
-                    /*
-                     * visual_priority queda preparado en DB,
-                     * pero todavía no obligamos a Claude a generarlo.
-                     */
                     'visual_priority' => null,
 
                     'image_prompt' => isset($scene['image_prompt'])
@@ -224,8 +168,97 @@ class StoryboardService
         return $project->refresh();
     }
 
-    private function formatAnimationNotes(array $animation): ?string
-    {
+    /**
+     * Normaliza los elementos visuales que deben añadirse
+     * manualmente durante la edición.
+     *
+     * Soporta tanto el formato nuevo estructurado como
+     * strings procedentes de proyectos antiguos.
+     */
+    private function normalizeManualElements(
+        mixed $manualElements
+    ): array {
+        if (!is_array($manualElements)) {
+            return [];
+        }
+
+        $normalized = [];
+
+        foreach ($manualElements as $item) {
+            // Compatibilidad con el formato antiguo:
+            // ["Añadir un porcentaje", "Añadir una flecha"]
+            if (is_string($item)) {
+                $description = trim($item);
+
+                if ($description === '') {
+                    continue;
+                }
+
+                $normalized[] = [
+                    'type' => 'elemento',
+                    'description' => $description,
+                    'details' => '',
+                    'position' => '',
+                ];
+
+                continue;
+            }
+
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $type = trim(
+                (string) (
+                    $item['type']
+                    ?? 'elemento'
+                )
+            );
+
+            $description = trim(
+                (string) (
+                    $item['description']
+                    ?? ''
+                )
+            );
+
+            $details = trim(
+                (string) (
+                    $item['details']
+                    ?? ''
+                )
+            );
+
+            $position = trim(
+                (string) (
+                    $item['position']
+                    ?? ''
+                )
+            );
+
+            if ($description === '') {
+                continue;
+            }
+
+            $normalized[] = [
+                'type' => $type !== ''
+                    ? $type
+                    : 'elemento',
+
+                'description' => $description,
+
+                'details' => $details,
+
+                'position' => $position,
+            ];
+        }
+
+        return array_values($normalized);
+    }
+
+    private function formatAnimationNotes(
+        array $animation
+    ): ?string {
         $animation = array_values(
             array_filter(
                 array_map(

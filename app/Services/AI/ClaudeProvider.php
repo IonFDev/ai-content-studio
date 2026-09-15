@@ -504,25 +504,62 @@ class ClaudeProvider implements AIProvider
         14. MANUAL ELEMENTS
         ==================================================
 
-        manual_elements contiene únicamente elementos que deben añadirse
-        posteriormente en postproducción.
+        manual_elements contiene ÚNICAMENTE los elementos visuales que el editor tendrá que añadir posteriormente durante la edición o postproducción del vídeo.
 
-        Ejemplos:
+        Estos elementos pueden ser, por ejemplo:
 
-        - cifra exacta
-        - porcentaje
-        - nombre
-        - ticker
-        - etiqueta
-        - flecha
-        - gráfico
-        - dato estadístico
+        - textos sobreimpresos
+        - porcentajes o cifras financieras exactas
+        - datos concretos
+        - flechas
+        - gráficos o gráficas
+        - iconos
+        - logotipos
+        - fotografías
+        - capturas de pantalla
+        - mapas
+        - recursos visuales externos
+        - otros elementos gráficos que no deban formar parte de la imagen generada por FLUX
 
-        Máximo 3 elementos por escena.
+        NO incluyas en manual_elements objetos, personajes, escenarios, edificios, máquinas ni otros elementos que ya deban aparecer dentro de la ilustración generada.
 
-        Si no son necesarios:
+        La imagen generada por FLUX es la BASE VISUAL de la escena.
 
-        []
+        manual_elements representa únicamente aquello que el editor deberá añadir posteriormente encima de esa imagen o mediante recursos externos.
+
+        Por ejemplo, si la imagen muestra al Detective junto a una máquina que representa los tipos de interés, NO debes indicar que hay que añadir manualmente la máquina. La máquina forma parte de la imagen generada.
+
+        En cambio, si la narración menciona un tipo de interés concreto del 4,5 %, sí puedes indicar que el editor debe añadir posteriormente el texto "4,5 %" sobre la imagen.
+
+        Cada elemento manual debe contener:
+
+        type: tipo de elemento.
+        description: qué debe añadir exactamente el editor.
+        details: información adicional útil, como el dato exacto, significado o tratamiento visual.
+        position: dónde debería colocarse aproximadamente dentro de la composición.
+
+        Ejemplo:
+
+        "manual_elements": [
+        {
+        "type": "porcentaje",
+        "description": "Añadir el texto "4,5 %"",
+        "details": "Representa el tipo de interés mencionado en la narración.",
+        "position": "Junto a la palanca de la máquina, en la zona derecha."
+        },
+        {
+        "type": "flecha",
+        "description": "Añadir una flecha descendente",
+        "details": "Debe reforzar visualmente la caída del indicador mencionada en la narración.",
+        "position": "Parte derecha de la composición."
+        }
+        ]
+
+        Si la escena no necesita ningún elemento adicional durante la edición, devuelve:
+
+        "manual_elements": []
+
+        No inventes datos, cifras, porcentajes, nombres, logotipos ni recursos externos que no estén justificados por la narración o por el contexto de la escena.
 
         ==================================================
         15. ANIMATION NOTES
@@ -764,8 +801,37 @@ class ClaudeProvider implements AIProvider
 
                             'manual_elements' => [
                                 'type' => 'array',
+                                'description' => 'Only visual elements that must be added manually during video editing. Do not describe things that are already part of the generated image.',
                                 'items' => [
-                                    'type' => 'string',
+                                    'type' => 'object',
+                                    'additionalProperties' => false,
+                                    'properties' => [
+                                        'type' => [
+                                            'type' => 'string',
+                                            'description' => 'Type of manual element: texto, dato, porcentaje, grafico, flecha, icono, logo, foto, captura, mapa, recurso_externo, etc.',
+                                        ],
+
+                                        'description' => [
+                                            'type' => 'string',
+                                            'description' => 'Exactly what the editor should add manually.',
+                                        ],
+
+                                        'details' => [
+                                            'type' => 'string',
+                                            'description' => 'Useful context about the manual element, such as the exact data, wording, meaning or visual treatment.',
+                                        ],
+
+                                        'position' => [
+                                            'type' => 'string',
+                                            'description' => 'Where the element should appear in the composition.',
+                                        ],
+                                    ],
+                                    'required' => [
+                                        'type',
+                                        'description',
+                                        'details',
+                                        'position',
+                                    ],
                                 ],
                             ],
 
