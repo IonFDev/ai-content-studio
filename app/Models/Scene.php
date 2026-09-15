@@ -39,20 +39,14 @@ class Scene extends Model
         'project_id',
         'order',
         'narration',
-
-        // Dirección visual
         'visual_description',
         'character_role',
         'shot_type',
         'visual_metaphor',
         'visual_priority',
-
-        // Generación
         'image_prompt',
         'image_path',
         'image_status',
-
-        // Producción
         'manual_elements',
         'animation_notes',
         'production_notes',
@@ -64,6 +58,22 @@ class Scene extends Model
             'manual_elements' => 'array',
             'visual_priority' => 'array',
         ];
+    }
+
+    /**
+     * Indica si esta escena necesita las referencias visuales
+     * del Detective Stickman.
+     */
+    public function usesDetective(): bool
+    {
+        return in_array(
+            $this->character_role,
+            [
+                'detective',
+                'detective_and_generic_stickmen',
+            ],
+            true
+        );
     }
 
     public function project(): BelongsTo

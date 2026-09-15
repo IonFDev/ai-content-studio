@@ -40,7 +40,7 @@ class ClaudeProvider implements AIProvider
         $payload = [
             'model' => $model,
 
-            'max_tokens' => 12000,
+            'max_tokens' => 24000,
 
             'system' => $this->buildSystemPrompt(),
 
