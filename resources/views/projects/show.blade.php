@@ -267,6 +267,22 @@
                     </button>
                 </form>
 
+                <form
+                    method="POST"
+                    action="{{ route('projects.generate-voice', $project) }}"
+                    class="d-inline"
+                >
+                    @csrf
+
+                    <button
+                        type="submit"
+                        class="btn btn-primary"
+                    >
+                        <i class="bi bi-mic-fill me-1"></i>
+                        Generar voz
+                    </button>
+                </form>
+
             </div>
 
             <hr>

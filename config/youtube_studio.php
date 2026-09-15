@@ -39,10 +39,18 @@ return [
     ],
 
     'flux' => [
-    'api_key' => env('BFL_API_KEY'),
-    'model' => env('BFL_MODEL', 'flux-2-pro'),
-    'timeout' => (int) env('BFL_TIMEOUT', 300),
-    'poll_interval' => (int) env('BFL_POLL_INTERVAL', 1),
-    'max_poll_attempts' => (int) env('BFL_MAX_POLL_ATTEMPTS', 120),
+        'api_key' => env('BFL_API_KEY'),
+        'model' => env('BFL_MODEL', 'flux-2-pro'),
+        'timeout' => (int) env('BFL_TIMEOUT', 300),
+        'poll_interval' => (int) env('BFL_POLL_INTERVAL', 1),
+        'max_poll_attempts' => (int) env('BFL_MAX_POLL_ATTEMPTS', 120),
+    ],
+
+    'elevenlabs' => [
+        'api_key' => env('ELEVENLABS_API_KEY'),
+        'voice_id' => env('ELEVENLABS_VOICE_ID'),
+        'model' => env('ELEVENLABS_MODEL', 'eleven_multilingual_v2'),
+        'output_format' => env('ELEVENLABS_OUTPUT_FORMAT', 'mp3_44100_128'),
+        'timeout' => (int) env('ELEVENLABS_TIMEOUT', 300),
     ],
 ];

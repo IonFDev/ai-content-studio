@@ -3,6 +3,8 @@ namespace App\Providers;
 use App\Contracts\AI\AIProvider;
 use App\Contracts\Images\ImageProvider;
 use App\Contracts\Transcription\TranscriptionProvider;
+use App\Contracts\Voice\VoiceProvider;
+use App\Services\Voice\ElevenLabsProvider;
 use App\Services\AI\ClaudeProvider;
 use App\Services\AI\FakeAIProvider;
 use App\Services\Images\FakeImageProvider;
@@ -18,6 +20,6 @@ class AppServiceProvider extends ServiceProvider {
   $this->app->bind(AIProvider::class, function () { return match(config('youtube_studio.providers.ai', 'fake')) { 'fake'=>app(FakeAIProvider::class), 'claude'=>app(ClaudeProvider::class), default=>throw new InvalidArgumentException('Unknown AI provider.') }; });
   $this->app->bind(ImageProvider::class, function () { return match(config('youtube_studio.providers.image', 'fake')) { 'fake'=>app(FakeImageProvider::class), 'ideogram'=>app(IdeogramProvider::class), 'flux'=>app(FluxProvider::class), 'imagen'=>app(ImagenProvider::class), default=>throw new InvalidArgumentException('Unknown image provider.') }; });
   $this->app->bind(TranscriptionProvider::class, function () { return match(config('youtube_studio.providers.transcription', 'fake')) { 'fake'=>app(FakeTranscriptionProvider::class), 'whisper'=>app(WhisperProvider::class), default=>throw new InvalidArgumentException('Unknown transcription provider.') }; });
- }
+  $this->app->bind(VoiceProvider::class,ElevenLabsProvider::class);}
  public function boot(): void {}
 }

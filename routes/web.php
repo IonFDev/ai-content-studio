@@ -21,3 +21,4 @@ Route::resource('characters', CharacterController::class)->except('show');
 Route::get('/characters/{character}/image/{type}', [CharacterController::class,'image'])->name('characters.image');
 Route::get('/settings', [SettingsController::class,'index'])->name('settings');
 Route::get('/projects/{project}/production-guide',[ProjectActionController::class, 'productionGuide'])->name('projects.production-guide');
+Route::post('/projects/{project}/generate-voice',[ProjectActionController::class, 'generateVoice'])->name('projects.generate-voice');

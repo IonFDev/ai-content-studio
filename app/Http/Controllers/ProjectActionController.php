@@ -10,6 +10,7 @@ use App\Models\Scene;
 use App\Services\ImageGenerationService;
 use App\Services\StoryboardService;
 use App\Services\TranscriptionService;
+use App\Services\VoiceGenerationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -303,5 +304,36 @@ class ProjectActionController extends Controller
                 )
             )
         );
+    }
+
+    public function generateVoice(
+        Project $project,
+        VoiceGenerationService $voiceGenerationService
+    ) {
+        try {
+            $result = $voiceGenerationService->generate(
+                $project
+            );
+
+            return back()->with(
+                'success',
+                'Voz generada correctamente. Duración: '
+                . number_format(
+                    $result['duration'],
+                    2,
+                    ',',
+                    '.'
+                )
+                . ' segundos.'
+            );
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()->with(
+                'error',
+                'Error generando la voz: '
+                . $e->getMessage()
+            );
+        }
     }
 }
