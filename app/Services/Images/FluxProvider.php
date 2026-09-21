@@ -13,6 +13,187 @@ class FluxProvider implements ImageProvider
 {
     private const API_URL = 'https://api.bfl.ai/v1/flux-2-pro';
 
+    private const STYLE_BIBLE = 
+    <<<'STYLE'
+    VISUAL STYLE BIBLE — STICKMAN CASEBOOK
+
+    GLOBAL VISUAL LANGUAGE
+
+    Create every image as part of the same coherent editorial cartoon universe.
+
+    Style:
+    - Adult editorial cartoon illustration.
+    - 2D illustrated artwork.
+    - Clean, controlled black linework.
+    - Simplified geometric forms.
+    - Strong readable silhouettes.
+    - Moderate visual detail.
+    - Sophisticated editorial composition.
+    - Restrained visual humor.
+    - Flat illustration with subtle visual depth.
+    - Consistent line weight.
+    - Clean shapes and controlled proportions.
+    - Professional magazine/editorial illustration quality.
+
+    The image must feel intentionally illustrated, not like a collection of isolated cartoon objects.
+
+    BACKGROUND AND ENVIRONMENT
+
+    Environments should contain enough visual information to communicate the situation clearly.
+
+    Use:
+    - foreground elements,
+    - middle ground,
+    - background,
+    - overlapping objects,
+    - perspective,
+    - scale differences,
+    - architectural or environmental context,
+    - controlled negative space.
+
+    Avoid empty backgrounds unless the scene specifically requires simplicity.
+
+    Avoid excessive detail or visual clutter.
+
+    CHARACTER SYSTEM
+
+    All human figures belong to the same stickman-based visual universe.
+
+    Generic stickmen:
+    - completely anonymous figures,
+    - simple circular white heads,
+    - simple black outlines,
+    - simple black stick bodies,
+    - minimal facial features,
+    - consistent proportions,
+    - no clothing,
+    - no accessories,
+    - no distinctive hairstyle,
+    - no distinctive facial identity.
+
+    The Detective Stickman is a separate recurring character with his own reference identity.
+
+    Never merge the Generic Stickman design with the Detective design.
+
+    Never give generic stickmen the Detective's clothing, hat, magnifying glass or other identifying features.
+
+    COMPOSITION
+
+    Prioritize visual storytelling over decoration.
+
+    The image must communicate the scene's central idea immediately.
+
+    Use:
+    - clear focal points,
+    - asymmetry when useful,
+    - diagonals,
+    - scale contrast,
+    - visual hierarchy,
+    - foreground/background separation,
+    - strong silhouettes.
+
+    Avoid compositions where the important action is visually lost.
+
+    CHARACTER SCALE
+
+    Characters should serve the composition.
+
+    The Detective normally occupies approximately 15–40% of the image height.
+
+    In wide establishing shots he may be significantly smaller.
+
+    Do not automatically place the Detective in the center.
+
+    Do not make the Detective dominate the frame unless the scene specifically requires it.
+
+    EDITORIAL VISUAL STORYTELLING
+
+    Prefer visual metaphors, exaggeration and symbolic situations when they communicate the narration better than literal representation.
+
+    Financial concepts should be represented visually through:
+    - people,
+    - environments,
+    - objects,
+    - exaggerated situations,
+    - symbolic structures,
+    - scale,
+    - movement,
+    - contrast.
+
+    Do not automatically create generic financial charts.
+
+    Do not automatically create floating numbers, labels or UI elements.
+
+    MANUAL PRODUCTION ELEMENTS
+
+    Never rely on generated text, labels, percentages, precise figures, tables, charts or numerical information when those elements are specified as manual production elements.
+
+    Those elements will be added later during post-production.
+
+    Do not invent readable text inside the image.
+
+    Do not generate fake statistics or fake labels.
+
+    CAMERA
+
+    Respect the requested shot type.
+
+    Wide:
+    - establish environment and relationships.
+
+    Medium:
+    - emphasize characters and actions.
+
+    Close-up:
+    - emphasize expression, object or important detail.
+
+    Extreme close-up:
+    - emphasize a specific visual detail.
+
+    Top-down:
+    - use clear overhead composition.
+
+    Low-angle:
+    - create visual importance or scale.
+
+    Do not ignore the requested camera distance.
+
+    STYLE CONSISTENCY
+
+    Every generated image must look as if it belongs to the same illustration system and the same YouTube channel.
+
+    Maintain consistency in:
+    - line quality,
+    - character proportions,
+    - color treatment,
+    - level of detail,
+    - geometric simplification,
+    - visual depth,
+    - editorial tone.
+
+    NEGATIVE STYLE RULES
+
+    Do not use:
+    - photorealism,
+    - realistic photography,
+    - 3D rendering,
+    - CGI,
+    - anime,
+    - manga,
+    - Pixar-like rendering,
+    - Disney-like rendering,
+    - chibi,
+    - kawaii,
+    - children's book illustration,
+    - preschool cartoon style,
+    - hyper-detailed realism,
+    - glossy 3D characters,
+    - excessive gradients,
+    - excessive visual noise,
+    - random decorative elements,
+    - inconsistent character designs.
+    STYLE;
+
     public function generateImage(
         Scene $scene,
         array $references = [],
@@ -57,57 +238,46 @@ class FluxProvider implements ImageProvider
          * REFERENCIAS
          * ---------------------------------------------------------
          *
-         * FLUX.2 utiliza:
+         * Las referencias llegan identificadas por su función:
          *
-         * input_image
-         * input_image_2
-         * input_image_3
-         * ...
+         * detective_reference_sheet
+         * detective_portrait
+         * generic_stickman
          *
-         * Las referencias que tenemos en Laravel son rutas locales,
-         * así que debemos convertirlas a Base64.
+         * No dependemos del orden del array para saber qué imagen
+         * representa cada personaje.
          */
 
         $referenceImages = $this->prepareReferences($references);
 
         /*
          * ---------------------------------------------------------
-         * PROMPT
+         * PROMPT DE REFERENCIAS
          * ---------------------------------------------------------
-         *
-         * Dejamos explícito qué representa cada referencia para que
-         * FLUX sepa que debe mantener la identidad visual del personaje.
          */
 
-        $referenceInstruction = '';
-
-        if (count($referenceImages) > 0) {
-            $referenceInstruction = <<<PROMPT
-
-Use the provided reference images as authoritative visual references.
-
-Image 1 is the definitive character reference.
-Image 2 is an additional character/style reference.
-
-Preserve the exact visual identity, proportions, head shape,
-facial features, eyes, mouth, clothing design, hat design,
-magnifying glass design, line weight and minimalist stickman
-aesthetic from the reference images.
-
-Do not redesign the character.
-Do not turn the character into a realistic human.
-Do not change the character into another cartoon style.
-The generated character must clearly be the same Detective Stickman
-shown in the reference images.
-
-PROMPT;
-        }
-
-        $finalPrompt = trim(
-            $referenceInstruction
-            . "\n\n"
-            . $prompt
+        $referenceInstruction = $this->buildReferenceInstruction(
+            $references
         );
+
+        /*
+         * ---------------------------------------------------------
+         * CONTEXTO VISUAL
+         * ---------------------------------------------------------
+         */
+
+        $visualInstruction = $this->buildVisualInstruction(
+            $scene,
+            $options
+        );
+
+        $finalPrompt = implode("\n\n", array_filter([
+            self::STYLE_BIBLE,
+            $referenceInstruction,
+            $visualInstruction,
+            'SCENE DESCRIPTION:',
+            $prompt,
+        ]));
 
         /*
          * ---------------------------------------------------------
@@ -123,11 +293,8 @@ PROMPT;
         ];
 
         /*
-         * Añadimos las referencias dinámicamente:
-         *
-         * input_image
-         * input_image_2
-         * ...
+         * Añadimos las referencias en el orden en que han sido
+         * preparadas.
          */
 
         foreach ($referenceImages as $index => $base64Image) {
@@ -205,25 +372,136 @@ PROMPT;
     }
 
     /**
-     * Convierte las rutas locales de las referencias en imágenes
-     * Base64 que BFL pueda recibir mediante input_image_N.
+     * Construye las instrucciones específicas de las referencias.
+     */
+    private function buildReferenceInstruction(
+        array $references
+    ): string {
+        if (empty($references)) {
+            return '';
+        }
+
+        $instructions = [
+            'REFERENCE IMAGES',
+            '',
+            'Use the provided reference images as authoritative visual references.',
+            '',
+            'Character identity must be preserved exactly.',
+            'Do not redesign, reinterpret or replace the referenced character design.',
+            'The references define character identity and anatomy, not the scene composition.',
+        ];
+
+        if (
+            isset($references['detective_reference_sheet'])
+            || isset($references['detective_portrait'])
+        ) {
+            $instructions[] = '';
+            $instructions[] = 'DETECTIVE STICKMAN REFERENCE:';
+            $instructions[] =
+                'The Detective Stickman reference images define the exact identity of the protagonist.';
+            $instructions[] =
+                'Preserve the exact head shape, facial features, proportions, clothing, fedora, magnifying glass, line weight and overall character design.';
+            $instructions[] =
+                'The Detective may change pose, position, scale and expression according to the scene.';
+            $instructions[] =
+                'Do not redesign the Detective.';
+        }
+
+        if (isset($references['generic_stickman'])) {
+            $instructions[] = '';
+            $instructions[] = 'GENERIC STICKMAN REFERENCE:';
+            $instructions[] =
+                'The Generic Stickman reference defines the exact identity and anatomy of all generic stickmen.';
+            $instructions[] =
+                'All generic stickmen must use the same head shape, body proportions, line weight, eyes, mouth, limbs, hands and feet shown in the reference.';
+            $instructions[] =
+                'Generic stickmen are anonymous supporting figures and must remain visually interchangeable.';
+            $instructions[] =
+                'They may change pose, scale, position and expression according to the scene.';
+            $instructions[] =
+                'Do not give generic stickmen clothing, hats, accessories or distinctive features.';
+        }
+
+        if (
+            isset($references['detective_reference_sheet'])
+            || isset($references['detective_portrait'])
+        ) {
+            if (isset($references['generic_stickman'])) {
+                $instructions[] = '';
+                $instructions[] = 'CHARACTER SEPARATION:';
+                $instructions[] =
+                    'The Detective Stickman and Generic Stickmen are two distinct visual identities.';
+                $instructions[] =
+                    'Never merge their designs.';
+                $instructions[] =
+                    'Never give generic stickmen the Detective clothing, fedora, magnifying glass or distinctive facial design.';
+                $instructions[] =
+                    'Never simplify the Detective into a generic stickman.';
+            }
+        }
+
+        return implode("\n", $instructions);
+    }
+
+    /**
+     * Añade contexto visual estructurado a partir de la escena.
+     */
+    private function buildVisualInstruction(
+        Scene $scene,
+        array $options
+    ): string {
+        $instructions = [
+            'VISUAL DIRECTION',
+            '',
+            'Create the scene as an adult editorial cartoon illustration.',
+            'The image must visually support the narration and communicate the main idea of the scene.',
+            'Do not create a generic decorative image that is merely related to the topic.',
+            'Prioritize visual clarity and narrative relevance.',
+        ];
+
+        if (!empty($options['character_role'])) {
+            $instructions[] = '';
+            $instructions[] =
+                'Character role: ' . $options['character_role'] . '.';
+        }
+
+        if (!empty($options['shot_type'])) {
+            $instructions[] =
+                'Shot type: ' . $options['shot_type'] . '.';
+        }
+
+        if (!empty($options['visual_metaphor'])) {
+            $instructions[] =
+                'Visual metaphor: '
+                . $options['visual_metaphor']
+                . '.';
+        }
+
+        return implode("\n", $instructions);
+    }
+
+    /**
+     * Convierte las referencias locales en Base64.
      */
     private function prepareReferences(array $references): array
     {
         $prepared = [];
 
-        /*
-         * FLUX.2 Pro admite hasta 8 imágenes de referencia
-         * mediante la API.
-         */
-        $references = array_slice($references, 0, 8);
+        $references = array_slice(
+            $references,
+            0,
+            8,
+            true
+        );
 
         foreach ($references as $referencePath) {
             if (!$referencePath) {
                 continue;
             }
 
-            $contents = $this->readReferenceFile($referencePath);
+            $contents = $this->readReferenceFile(
+                $referencePath
+            );
 
             if ($contents === null) {
                 continue;
@@ -244,30 +522,17 @@ PROMPT;
         return $prepared;
     }
 
-    /**
-     * Intenta localizar una referencia tanto en storage/app
-     * como en storage/app/public.
-     */
     private function readReferenceFile(
         string $referencePath
     ): ?string {
-        /*
-         * 1. Intentar disco local de Laravel.
-         */
         if (Storage::disk('local')->exists($referencePath)) {
             return Storage::disk('local')->get($referencePath);
         }
 
-        /*
-         * 2. Intentar disco public.
-         */
         if (Storage::disk('public')->exists($referencePath)) {
             return Storage::disk('public')->get($referencePath);
         }
 
-        /*
-         * 3. Intentar ruta absoluta.
-         */
         if (is_file($referencePath)) {
             $contents = file_get_contents($referencePath);
 
@@ -282,9 +547,6 @@ PROMPT;
         );
     }
 
-    /**
-     * Detecta el MIME de la imagen.
-     */
     private function detectMimeType(
         string $referencePath,
         string $contents

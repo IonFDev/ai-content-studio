@@ -44,6 +44,11 @@ return [
         'timeout' => (int) env('BFL_TIMEOUT', 300),
         'poll_interval' => (int) env('BFL_POLL_INTERVAL', 1),
         'max_poll_attempts' => (int) env('BFL_MAX_POLL_ATTEMPTS', 120),
+        
+        'generic_stickman_reference_path' => env(
+            'GENERIC_STICKMAN_REFERENCE_PATH',
+            'characters/generic-stickman-reference.png'
+        ),
     ],
 
     'elevenlabs' => [
