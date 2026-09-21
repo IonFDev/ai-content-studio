@@ -55,22 +55,62 @@ class StoryboardService
                     ? $scene['production']
                     : [];
 
+                /*
+                |--------------------------------------------------------------------------
+                | Visual concept
+                |--------------------------------------------------------------------------
+                */
+
+                $visualConcept = $scene['visual_concept']
+                    ?? $visual['visual_concept']
+                    ?? null;
+
+                /*
+                |--------------------------------------------------------------------------
+                | Visual description
+                |--------------------------------------------------------------------------
+                */
+
                 $visualDescription = $scene['visual_description']
                     ?? $visual['description']
                     ?? null;
 
+                /*
+                |--------------------------------------------------------------------------
+                | Character role
+                |--------------------------------------------------------------------------
+                */
+
                 $characterRole = $scene['character_role']
                     ?? $visual['character_role']
                     ?? 'none';
+
+                /*
+                |--------------------------------------------------------------------------
+                | Shot type
+                |--------------------------------------------------------------------------
+                */
 
                 $shotType = $scene['shot_type']
                     ?? $visual['shot_type']
                     ?? $visual['camera']
                     ?? 'medium';
 
+                /*
+                |--------------------------------------------------------------------------
+                | Visual metaphor
+                |--------------------------------------------------------------------------
+                */
+
                 $visualMetaphor = $scene['visual_metaphor']
                     ?? $visual['visual_metaphor']
                     ?? null;
+
+                /*
+                |--------------------------------------------------------------------------
+                | Manual elements
+                |--------------------------------------------------------------------------
+                */
 
                 $manualElements = $scene['manual_elements']
                     ?? $production['manual_elements']
@@ -79,6 +119,12 @@ class StoryboardService
                 $manualElements = $this->normalizeManualElements(
                     $manualElements
                 );
+
+                /*
+                |--------------------------------------------------------------------------
+                | Animation notes
+                |--------------------------------------------------------------------------
+                */
 
                 $animationNotes = $scene['animation_notes']
                     ?? null;
@@ -93,6 +139,12 @@ class StoryboardService
                     );
                 }
 
+                /*
+                |--------------------------------------------------------------------------
+                | Validate character role
+                |--------------------------------------------------------------------------
+                */
+
                 if (
                     !in_array(
                         $characterRole,
@@ -103,6 +155,12 @@ class StoryboardService
                     $characterRole = 'none';
                 }
 
+                /*
+                |--------------------------------------------------------------------------
+                | Validate shot type
+                |--------------------------------------------------------------------------
+                */
+
                 if (
                     !in_array(
                         $shotType,
@@ -112,6 +170,12 @@ class StoryboardService
                 ) {
                     $shotType = 'medium';
                 }
+
+                /*
+                |--------------------------------------------------------------------------
+                | Create scene
+                |--------------------------------------------------------------------------
+                */
 
                 $project->scenes()->create([
                     'order' => (int) (
@@ -125,6 +189,10 @@ class StoryboardService
                             ?? ''
                         )
                     ),
+
+                    'visual_concept' => $visualConcept !== null
+                        ? trim((string) $visualConcept)
+                        : null,
 
                     'visual_description' => $visualDescription !== null
                         ? trim((string) $visualDescription)
@@ -244,11 +312,8 @@ class StoryboardService
                 'type' => $type !== ''
                     ? $type
                     : 'elemento',
-
                 'description' => $description,
-
                 'details' => $details,
-
                 'position' => $position,
             ];
         }

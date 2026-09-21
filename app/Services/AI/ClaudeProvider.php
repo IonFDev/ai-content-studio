@@ -16,7 +16,7 @@ class ClaudeProvider implements AIProvider
     private const MODEL = 'claude-sonnet-4-6';
 
     private const MAX_TOKENS = 32000;
-        
+
     public function generateContent(
         Project $project,
         string $transcript
@@ -182,8 +182,7 @@ Desarrolla el tema mediante:
 - conexiones entre conceptos
 - escenarios posibles cuando estén justificados
 
-El vídeo debe sentirse como un análisis completo y no como una noticia
-superficial artificialmente alargada.
+El vídeo debe sentirse como un análisis completo y no como una noticia superficial artificialmente alargada.
 
 La estructura narrativa debe permitir que el espectador entienda:
 
@@ -204,14 +203,11 @@ El guion debe:
 - Terminar con una conclusión clara.
 - Mantener fidelidad a la información disponible en la fuente.
 
-No inventes datos, cifras, declaraciones o hechos que no estén respaldados
-por la fuente o por conocimiento general inequívoco.
+No inventes datos, cifras, declaraciones o hechos que no estén respaldados por la fuente o por conocimiento general inequívoco.
 
-Si la fuente no proporciona suficiente información para afirmar algo con
-certeza, no inventes información para completar la duración.
+Si la fuente no proporciona suficiente información para afirmar algo con certeza, no inventes información para completar la duración.
 
-La calidad del contenido tiene prioridad sobre alcanzar exactamente
-1.150 palabras.
+La calidad del contenido tiene prioridad sobre alcanzar exactamente 1.150 palabras.
 
 ==================================================
 2. ESTRUCTURA NARRATIVA
@@ -249,8 +245,7 @@ El objetivo habitual es entre 42 y 48 escenas.
 
 No necesitas alcanzar exactamente una cifra concreta.
 
-Utiliza menos escenas cuando una escena pueda sostener visualmente una
-parte importante de la narración.
+Utiliza menos escenas cuando una escena pueda sostener visualmente una parte importante de la narración.
 
 Utiliza más escenas cuando exista un cambio visual real.
 
@@ -278,11 +273,152 @@ Cada escena debe poder funcionar visualmente por sí misma.
 
 Las escenas deben distribuirse a lo largo de toda la narración.
 
-No concentres demasiada narración en las primeras escenas para después
-acelerar artificialmente el final.
+No concentres demasiada narración en las primeras escenas para después acelerar artificialmente el final.
 
 ==================================================
-4. DETECTIVE STICKMAN
+4. DIRECTOR VISUAL
+==================================================
+
+La narración es la fuente principal de la dirección visual.
+
+Para cada escena debes seguir obligatoriamente esta cadena:
+
+NARRACIÓN
+→ VISUAL CONCEPT
+→ VISUAL METAPHOR
+→ VISUAL DESCRIPTION
+→ IMAGE PROMPT
+
+El objetivo no es crear una imagen simplemente relacionada con el tema.
+
+El objetivo es crear una imagen que ayude al espectador a comprender visualmente lo que se está explicando.
+
+Cada escena debe responder a esta pregunta:
+
+"¿Qué debe entender el espectador al mirar esta imagen mientras escucha esta narración?"
+
+No generes imágenes genéricas que simplemente representen:
+
+- economía
+- dinero
+- mercados
+- bancos
+- gráficos
+- empresarios
+- personas trabajando
+
+si esos elementos no explican concretamente la idea de la narración.
+
+La imagen debe tener una razón narrativa concreta para existir.
+
+==================================================
+5. VISUAL CONCEPT
+==================================================
+
+visual_concept debe expresar exactamente qué idea debe comprender el espectador mediante la imagen.
+
+Debe ser conceptual, no una descripción física de la escena.
+
+Ejemplo:
+
+Narración:
+"Los inversores empiezan a exigir una mayor rentabilidad para prestar dinero al Estado."
+
+Buen visual_concept:
+
+"Mostrar que el Estado necesita ofrecer una recompensa cada vez mayor para conseguir financiación."
+
+Mal visual_concept:
+
+"Unos inversores mirando gráficos."
+
+visual_concept debe responder:
+
+"¿Qué idea quiero explicar visualmente?"
+
+No debe responder:
+
+"¿Qué objetos aparecen?"
+
+Debe ser breve y específico.
+
+==================================================
+6. VISUAL METAPHOR
+==================================================
+
+visual_metaphor debe convertir el visual_concept en una representación visual concreta cuando una metáfora ayude.
+
+Ejemplos:
+
+- una montaña de deuda
+- una subasta donde los inversores exigen un precio mayor
+- una máquina financiera que se vuelve cada vez más pesada
+- una balanza desequilibrada
+- un Estado intentando escalar una montaña de facturas
+
+No fuerces metáforas.
+
+Si una representación literal comunica mejor la idea, utiliza una representación literal.
+
+La metáfora debe ayudar a comprender la narración y nunca ser arbitraria.
+
+==================================================
+7. VISUAL DESCRIPTION
+==================================================
+
+visual_description debe describir exactamente qué debe verse físicamente.
+
+Debe incluir, cuando sea relevante:
+
+- personajes
+- objetos
+- entorno
+- acción
+- relaciones espaciales
+- punto focal
+- profundidad
+
+No repitas la narración literalmente.
+
+No escribas explicaciones conceptuales largas.
+
+Máximo aproximadamente 2 frases.
+
+==================================================
+8. IMAGE PROMPT
+==================================================
+
+image_prompt debe convertir el concepto visual y la descripción visual en una instrucción concreta para generar la imagen.
+
+Debe indicar:
+
+- elementos principales
+- acción
+- composición
+- perspectiva
+- profundidad cuando sea relevante
+- metáfora visual cuando sea necesaria
+
+Máximo 2 frases.
+
+NO repitas el Style Bible.
+
+NO describas las características generales del Detective si ya están definidas globalmente.
+
+NO escribas instrucciones técnicas para FLUX.
+
+NO escribas párrafos explicativos.
+
+El prompt debe ser compacto y específico.
+
+IMPORTANTE:
+
+image_prompt debe representar exactamente el visual_concept y visual_description.
+
+No introduzcas elementos visuales que cambien el significado de la escena.
+
+==================================================
+9. DETECTIVE STICKMAN
 ==================================================
 
 El canal utiliza un Detective Stickman como personaje narrativo recurrente.
@@ -320,7 +456,7 @@ Puede aparecer:
 También puede estar completamente ausente cuando la escena funcione mejor sin él.
 
 ==================================================
-5. PERSONAJES GENÉRICOS
+10. PERSONAJES GENÉRICOS
 ==================================================
 
 Los generic stickmen son figuras humanas anónimas.
@@ -340,46 +476,59 @@ Nunca conviertas un generic stickman en el Detective.
 El Detective y los generic stickmen deben ser visualmente distinguibles.
 
 ==================================================
-6. CHARACTER ROLE
+11. CHARACTER ROLE
 ==================================================
 
 Cada escena debe utilizar exactamente uno de estos valores:
 
 none
+
 generic_stickmen
+
 detective
+
 detective_and_generic_stickmen
 
 Reglas:
 
 none:
+
 No aparecen personajes.
 
 generic_stickmen:
+
 Aparecen únicamente personas genéricas.
 
 detective:
+
 Aparece el Detective.
 
 detective_and_generic_stickmen:
+
 Aparecen el Detective y uno o varios generic stickmen.
 
-Utiliza "none" cuando una metáfora, objeto, edificio, máquina, gráfico conceptual
-o entorno sea visualmente más potente sin personajes.
+Utiliza "none" cuando una metáfora, objeto, edificio, máquina, gráfico conceptual o entorno sea visualmente más potente sin personajes.
 
 ==================================================
-7. TIPOS DE PLANO
+12. TIPOS DE PLANO
 ==================================================
 
 Utiliza únicamente estos valores:
 
 wide_establishing
+
 wide
+
 medium_wide
+
 medium
+
 close_up
+
 extreme_close_up
+
 top_down
+
 low_angle
 
 Prioriza:
@@ -389,15 +538,14 @@ wide
 medium_wide
 medium
 
-Utiliza close_up y extreme_close_up solamente cuando tengan una función
-narrativa clara.
+Utiliza close_up y extreme_close_up solamente cuando tengan una función narrativa clara.
 
 Varía los planos.
 
 No hagas que todas las escenas tengan el mismo encuadre.
 
 ==================================================
-8. DIRECCIÓN VISUAL
+13. DIRECCIÓN VISUAL
 ==================================================
 
 El estilo global del canal es:
@@ -444,7 +592,7 @@ Tampoco llenes la imagen de detalles sin función.
 Busca un nivel de complejidad MEDIO.
 
 ==================================================
-9. METÁFORAS VISUALES
+14. METÁFORAS VISUALES
 ==================================================
 
 Prioriza metáforas visuales cuando ayuden a explicar el concepto.
@@ -467,11 +615,10 @@ No uses metáforas arbitrarias.
 
 La metáfora debe ayudar a comprender la narración.
 
-Evita representar literalmente cada concepto cuando una metáfora editorial
-resulte más interesante.
+Evita representar literalmente cada concepto cuando una metáfora editorial resulte más interesante.
 
 ==================================================
-10. COMPOSICIÓN
+15. COMPOSICIÓN
 ==================================================
 
 Piensa como un director de arte.
@@ -497,7 +644,7 @@ En planos amplios, el Detective puede ocupar solamente una pequeña parte de la 
 No conviertas cada escena en una ficha de personaje.
 
 ==================================================
-11. TEXTO Y DATOS EN LAS IMÁGENES
+16. TEXTO Y DATOS EN LAS IMÁGENES
 ==================================================
 
 NO generes texto largo dentro de las imágenes.
@@ -513,83 +660,17 @@ NO generes:
 - etiquetas inventadas
 - gráficos con cifras inventadas
 
-Cuando un dato exacto, porcentaje, palabra, flecha, etiqueta o gráfico sea
-importante, indícalo en "manual_elements".
+Cuando un dato exacto, porcentaje, palabra, flecha, etiqueta o gráfico sea importante, indícalo en "manual_elements".
 
 Estos elementos se añadirán posteriormente en postproducción.
 
 La imagen generada debe funcionar como estructura visual.
 
 ==================================================
-12. IMAGE PROMPT
+17. MANUAL ELEMENTS
 ==================================================
 
-image_prompt debe describir únicamente la dirección visual específica
-de esta escena.
-
-Máximo 2 frases.
-
-Debe indicar:
-
-- elementos principales
-- acción
-- composición
-- perspectiva
-- profundidad cuando sea relevante
-- metáfora visual cuando sea necesaria
-
-NO repitas el Style Bible.
-
-NO describas las características generales del Detective si ya están
-definidas globalmente.
-
-NO escribas instrucciones técnicas para FLUX.
-
-NO escribas párrafos explicativos.
-
-El prompt debe ser compacto y específico.
-
-==================================================
-13. VISUAL DESCRIPTION
-==================================================
-
-visual_description debe describir brevemente qué debe verse.
-
-Máximo 2 frases.
-
-Debe incluir únicamente:
-
-- sujeto principal
-- entorno
-- acción
-- composición relevante
-
-No escribas explicaciones largas.
-
-No repitas la narración.
-
-No repitas las reglas globales del estilo.
-
-==================================================
-14. VISUAL METAPHOR
-==================================================
-
-visual_metaphor debe resumir el concepto visual en una sola frase corta.
-
-Máximo aproximadamente 15 palabras.
-
-No expliques la metáfora.
-
-Si la escena no necesita una metáfora, utiliza una descripción conceptual sencilla.
-
-No fuerces metáforas absurdas.
-
-==================================================
-15. MANUAL ELEMENTS
-==================================================
-
-manual_elements contiene ÚNICAMENTE los elementos visuales que el editor
-tendrá que añadir posteriormente durante la edición o postproducción del vídeo.
+manual_elements contiene ÚNICAMENTE los elementos visuales que el editor tendrá que añadir posteriormente durante la edición o postproducción del vídeo.
 
 Estos elementos pueden ser, por ejemplo:
 
@@ -606,23 +687,20 @@ Estos elementos pueden ser, por ejemplo:
 - recursos visuales externos
 - otros elementos gráficos que no deban formar parte de la imagen generada por FLUX
 
-NO incluyas en manual_elements objetos, personajes, escenarios, edificios,
-máquinas ni otros elementos que ya deban aparecer dentro de la ilustración generada.
+NO incluyas en manual_elements objetos, personajes, escenarios, edificios, máquinas ni otros elementos que ya deban aparecer dentro de la ilustración generada.
 
 La imagen generada por FLUX es la BASE VISUAL de la escena.
 
-manual_elements representa únicamente aquello que el editor deberá añadir
-posteriormente encima de esa imagen o mediante recursos externos.
+manual_elements representa únicamente aquello que el editor deberá añadir posteriormente encima de esa imagen o mediante recursos externos.
 
-No inventes datos, cifras, porcentajes, nombres, logotipos ni recursos externos
-que no estén justificados por la narración o por el contexto de la escena.
+No inventes datos, cifras, porcentajes, nombres, logotipos ni recursos externos que no estén justificados por la narración o por el contexto de la escena.
 
 Si la escena no necesita ningún elemento adicional durante la edición, devuelve:
 
 "manual_elements": []
 
 ==================================================
-16. ANIMATION NOTES
+18. ANIMATION NOTES
 ==================================================
 
 animation_notes debe contener una única indicación breve de animación.
@@ -637,13 +715,12 @@ Ejemplos:
 - Mantener imagen estática.
 
 ==================================================
-17. NARRACIÓN Y VISUAL
+19. NARRACIÓN Y VISUAL
 ==================================================
 
 La imagen debe reforzar la narración.
 
-No generes una escena genérica que simplemente represente
-"economía", "dinero" o "mercados".
+No generes una escena genérica que simplemente represente "economía", "dinero" o "mercados".
 
 Cada escena debe tener una razón concreta para existir.
 
@@ -651,14 +728,12 @@ La narración debe determinar la dirección visual.
 
 Distribuye la narración de forma natural entre las escenas.
 
-Evita escenas con una sola frase extremadamente corta si la idea todavía
-puede desarrollarse dentro de la misma escena.
+Evita escenas con una sola frase extremadamente corta si la idea todavía puede desarrollarse dentro de la misma escena.
 
-También evita escenas excesivamente largas cuando exista una oportunidad
-clara de realizar un cambio visual.
+También evita escenas excesivamente largas cuando exista una oportunidad clara de realizar un cambio visual.
 
 ==================================================
-18. CONSISTENCIA
+20. CONSISTENCIA
 ==================================================
 
 Mantén coherencia entre escenas:
@@ -674,7 +749,7 @@ Sin embargo, evita repetir composiciones.
 La variedad visual es importante.
 
 ==================================================
-19. RESTRICCIÓN DE SALIDA
+21. RESTRICCIÓN DE SALIDA
 ==================================================
 
 Devuelve exclusivamente el JSON solicitado por el esquema.
@@ -687,12 +762,10 @@ No añadas objetos adicionales.
 
 No repitas información global en cada escena.
 
-La respuesta debe ser suficientemente detallada para producir un vídeo
-de aproximadamente 8 minutos, pero evitando texto innecesario dentro de
-las descripciones visuales.
+La respuesta debe ser suficientemente detallada para producir un vídeo de aproximadamente 8 minutos, pero evitando texto innecesario dentro de las descripciones visuales.
 
 ==================================================
-20. PRIORIDAD
+22. PRIORIDAD
 ==================================================
 
 Prioridad de decisión:
@@ -717,15 +790,19 @@ PROMPT;
 Crea el contenido completo del vídeo a partir de la siguiente información.
 
 PROYECTO:
+
 {$project->name}
 
 TÍTULO DE LA FUENTE:
+
 {$project->source_title}
 
 URL DE LA FUENTE:
+
 {$project->source_url}
 
 TRANSCRIPCIÓN / FUENTE:
+
 {$transcript}
 
 OBJETIVO DE DURACIÓN:
@@ -733,14 +810,17 @@ OBJETIVO DE DURACIÓN:
 Genera un vídeo pensado para una duración aproximada de 8 minutos.
 
 Rango aceptable:
+
 - mínimo: 7 minutos y 30 segundos
 - máximo: 10 minutos
 - objetivo ideal: alrededor de 8 minutos
 
 La duración debe conseguirse mediante una narración completa, natural y sustancial.
+
 No alargues el guion artificialmente con repeticiones, frases vacías o explicaciones redundantes.
 
 La narración debería situarse aproximadamente entre 1.050 y 1.300 palabras,
+
 ajustándose al ritmo natural de una narración de YouTube en español.
 
 ESCENAS
@@ -750,6 +830,7 @@ Genera aproximadamente entre 40 y 55 escenas.
 No intentes alcanzar un número exacto de escenas.
 
 Crea una nueva escena cuando exista un cambio visual significativo:
+
 - cambia la idea que se está explicando;
 - cambia el concepto o metáfora visual;
 - cambia el escenario;
@@ -757,16 +838,13 @@ Crea una nueva escena cuando exista un cambio visual significativo:
 - aparece un elemento visual relevante;
 - conviene cambiar el encuadre para mantener el ritmo.
 
-No dividas artificialmente una misma idea en varias escenas únicamente para aumentar
-el número de escenas.
+No dividas artificialmente una misma idea en varias escenas únicamente para aumentar el número de escenas.
 
 Tampoco agrupes demasiadas ideas diferentes dentro de una sola escena.
 
-Como referencia, un vídeo de aproximadamente 8 minutos normalmente debería terminar
-alrededor de 44–50 escenas, aunque el número final puede variar según el contenido.
+Como referencia, un vídeo de aproximadamente 8 minutos normalmente debería terminar alrededor de 44–50 escenas, aunque el número final puede variar según el contenido.
 
-La narración de las escenas debe cubrir TODO el guion y mantener el orden
-narrativo.
+La narración de las escenas debe cubrir TODO el guion y mantener el orden narrativo.
 
 Genera:
 
@@ -776,17 +854,29 @@ Genera:
 4. Estructura narrativa.
 5. Storyboard de aproximadamente 40–50 escenas.
 
-El storyboard debe seguir exactamente las reglas visuales establecidas
-en el system prompt.
+El storyboard debe seguir exactamente las reglas visuales establecidas en el system prompt.
+
+Para cada escena, asegúrate de que:
+
+- visual_concept explique qué debe comprender visualmente el espectador;
+- visual_metaphor represente ese concepto cuando una metáfora sea útil;
+- visual_description describa lo que debe verse físicamente;
+- image_prompt convierta todo lo anterior en una escena concreta y producible.
+
+La imagen debe estar directamente relacionada con la narración de esa escena.
+
+No generes escenas genéricas que solamente representen el tema general del vídeo.
+
+No repitas el mismo concepto visual en escenas consecutivas salvo que la continuidad narrativa lo requiera.
 
 No repitas el Style Bible dentro de cada image_prompt.
 
 Prioriza escenas visualmente diferentes, útiles y producibles.
 
-La calidad del contenido tiene prioridad sobre alcanzar exactamente
-una duración o número de escenas concreto.
+La calidad del contenido tiene prioridad sobre alcanzar exactamente una duración o número de escenas concreto.
 
 Devuelve únicamente el JSON solicitado.
+
 PROMPT;
     }
 
@@ -794,11 +884,13 @@ PROMPT;
     {
         return [
             'type' => 'object',
+
             'additionalProperties' => false,
 
             'properties' => [
                 'video' => [
                     'type' => 'object',
+
                     'additionalProperties' => false,
 
                     'properties' => [
@@ -853,6 +945,7 @@ PROMPT;
 
                 'content' => [
                     'type' => 'object',
+
                     'additionalProperties' => false,
 
                     'properties' => [
@@ -884,6 +977,7 @@ PROMPT;
 
                     'items' => [
                         'type' => 'object',
+
                         'additionalProperties' => false,
 
                         'properties' => [
@@ -893,6 +987,11 @@ PROMPT;
 
                             'narration' => [
                                 'type' => 'string',
+                            ],
+
+                            'visual_concept' => [
+                                'type' => 'string',
+                                'description' => 'The exact idea the viewer should understand visually from this scene.',
                             ],
 
                             'visual_description' => [
@@ -917,10 +1016,14 @@ PROMPT;
 
                             'manual_elements' => [
                                 'type' => 'array',
+
                                 'description' => 'Only visual elements that must be added manually during video editing. Do not describe things that are already part of the generated image.',
+
                                 'items' => [
                                     'type' => 'object',
+
                                     'additionalProperties' => false,
+
                                     'properties' => [
                                         'type' => [
                                             'type' => 'string',
@@ -942,6 +1045,7 @@ PROMPT;
                                             'description' => 'Where the element should appear in the composition.',
                                         ],
                                     ],
+
                                     'required' => [
                                         'type',
                                         'description',
@@ -959,6 +1063,7 @@ PROMPT;
                         'required' => [
                             'order',
                             'narration',
+                            'visual_concept',
                             'visual_description',
                             'character_role',
                             'shot_type',
@@ -1116,6 +1221,7 @@ PROMPT;
                 [
                     'order',
                     'narration',
+                    'visual_concept',
                     'visual_description',
                     'character_role',
                     'shot_type',
@@ -1141,6 +1247,18 @@ PROMPT;
             ) {
                 throw new RuntimeException(
                     "La escena {$sceneNumber} no contiene una narración válida."
+                );
+            }
+
+            /*
+             * Visual concept.
+             */
+            if (
+                !is_string($scene['visual_concept'])
+                || trim($scene['visual_concept']) === ''
+            ) {
+                throw new RuntimeException(
+                    "La escena {$sceneNumber} no contiene un visual_concept válido."
                 );
             }
 
@@ -1225,6 +1343,7 @@ PROMPT;
         $body = $response->toPsrResponse()->getBody();
 
         $buffer = '';
+
         $result = '';
 
         while (!$body->eof()) {
@@ -1333,6 +1452,7 @@ PROMPT;
         $result = '';
 
         $inString = false;
+
         $escaped = false;
 
         $length = strlen($json);
@@ -1347,6 +1467,7 @@ PROMPT;
              */
             if ($escaped) {
                 $result .= $char;
+
                 $escaped = false;
 
                 continue;
@@ -1370,6 +1491,7 @@ PROMPT;
              */
             if ($char === '"') {
                 $result .= $char;
+
                 $inString = !$inString;
 
                 continue;
@@ -1401,7 +1523,10 @@ PROMPT;
                 }
 
                 if ($ord < 32) {
-                    $result .= sprintf('\\u%04x', $ord);
+                    $result .= sprintf(
+                        '\\u%04x',
+                        $ord
+                    );
 
                     continue;
                 }
@@ -1441,3 +1566,4 @@ PROMPT;
         );
     }
 }
+

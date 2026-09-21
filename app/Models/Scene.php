@@ -39,6 +39,7 @@ class Scene extends Model
         'project_id',
         'order',
         'narration',
+        'visual_concept',
         'visual_description',
         'character_role',
         'shot_type',

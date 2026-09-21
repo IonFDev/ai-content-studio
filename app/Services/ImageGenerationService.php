@@ -25,20 +25,53 @@ class ImageGenerationService
         ]);
 
         try {
-            $references = $this->buildReferences($scene, $project);
+            $references = $this->buildReferences(
+                $scene,
+                $project
+            );
 
             $result = $this->provider->generateImage(
                 $scene,
                 $references,
                 [
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Output
+                    |--------------------------------------------------------------------------
+                    */
+
                     'width' => 1536,
                     'height' => 864,
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Scene direction
+                    |--------------------------------------------------------------------------
+                    */
+
+                    'visual_concept' => $scene->visual_concept,
+
+                    'visual_description' => $scene->visual_description,
+
+                    'visual_metaphor' => $scene->visual_metaphor,
+
+                    'image_prompt' => $scene->image_prompt,
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Composition
+                    |--------------------------------------------------------------------------
+                    */
 
                     'character_role' => $scene->character_role,
 
                     'shot_type' => $scene->shot_type,
 
-                    'visual_metaphor' => $scene->visual_metaphor,
+                    /*
+                    |--------------------------------------------------------------------------
+                    | References
+                    |--------------------------------------------------------------------------
+                    */
 
                     'uses_character_reference' => !empty($references),
                 ]
@@ -80,7 +113,9 @@ class ImageGenerationService
             );
 
             return $scene->refresh();
+
         } catch (\Throwable $e) {
+
             $scene->update([
                 'image_status' => 'error',
             ]);
@@ -109,10 +144,10 @@ class ImageGenerationService
         $characterRole = $scene->character_role;
 
         /*
-         * ---------------------------------------------------------
-         * DETECTIVE
-         * ---------------------------------------------------------
-         */
+        |--------------------------------------------------------------------------
+        | DETECTIVE
+        |--------------------------------------------------------------------------
+        */
 
         if (
             in_array(
@@ -136,10 +171,10 @@ class ImageGenerationService
         }
 
         /*
-         * ---------------------------------------------------------
-         * GENERIC STICKMEN
-         * ---------------------------------------------------------
-         */
+        |--------------------------------------------------------------------------
+        | GENERIC STICKMEN
+        |--------------------------------------------------------------------------
+        */
 
         if (
             in_array(

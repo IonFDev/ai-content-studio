@@ -36,19 +36,12 @@ class AIContentService
 
             $project->update([
                 'youtube_title' => $video['title'] ?? null,
-
                 'youtube_description' => $video['description'] ?? null,
-
                 'youtube_keywords' => $video['keywords'] ?? [],
-
                 'youtube_hashtags' => $video['hashtags'] ?? [],
-
                 'thumbnail_idea' => $video['thumbnail_concept'] ?? null,
-
                 'thumbnail_text' => $video['thumbnail_text'] ?? null,
-
                 'script' => $content['script'] ?? null,
-
                 'status' => 'script_ready',
             ]);
 
@@ -203,6 +196,7 @@ class AIContentService
             foreach ([
                 'order',
                 'narration',
+                'visual_concept',
                 'visual_description',
                 'character_role',
                 'shot_type',
@@ -242,6 +236,21 @@ class AIContentService
             ) {
                 throw new RuntimeException(
                     "La escena {$sceneNumber} no contiene una narración válida."
+                );
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Visual concept
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                !is_string($scene['visual_concept'])
+                || trim($scene['visual_concept']) === ''
+            ) {
+                throw new RuntimeException(
+                    "La escena {$sceneNumber} no contiene un visual_concept válido."
                 );
             }
 

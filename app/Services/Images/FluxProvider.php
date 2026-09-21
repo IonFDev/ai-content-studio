@@ -13,7 +13,7 @@ class FluxProvider implements ImageProvider
 {
     private const API_URL = 'https://api.bfl.ai/v1/flux-2-pro';
 
-    private const STYLE_BIBLE = 
+    private const STYLE_BIBLE =
     <<<'STYLE'
     VISUAL STYLE BIBLE — STICKMAN CASEBOOK
 
@@ -275,8 +275,6 @@ class FluxProvider implements ImageProvider
             self::STYLE_BIBLE,
             $referenceInstruction,
             $visualInstruction,
-            'SCENE DESCRIPTION:',
-            $prompt,
         ]));
 
         /*
@@ -391,6 +389,12 @@ class FluxProvider implements ImageProvider
             'The references define character identity and anatomy, not the scene composition.',
         ];
 
+        /*
+         * ---------------------------------------------------------
+         * DETECTIVE
+         * ---------------------------------------------------------
+         */
+
         if (
             isset($references['detective_reference_sheet'])
             || isset($references['detective_portrait'])
@@ -407,6 +411,12 @@ class FluxProvider implements ImageProvider
                 'Do not redesign the Detective.';
         }
 
+        /*
+         * ---------------------------------------------------------
+         * GENERIC STICKMAN
+         * ---------------------------------------------------------
+         */
+
         if (isset($references['generic_stickman'])) {
             $instructions[] = '';
             $instructions[] = 'GENERIC STICKMAN REFERENCE:';
@@ -421,6 +431,12 @@ class FluxProvider implements ImageProvider
             $instructions[] =
                 'Do not give generic stickmen clothing, hats, accessories or distinctive features.';
         }
+
+        /*
+         * ---------------------------------------------------------
+         * SEPARACIÓN DE PERSONAJES
+         * ---------------------------------------------------------
+         */
 
         if (
             isset($references['detective_reference_sheet'])
@@ -445,11 +461,56 @@ class FluxProvider implements ImageProvider
 
     /**
      * Añade contexto visual estructurado a partir de la escena.
+     *
+     * La dirección visual sigue esta jerarquía:
+     *
+     * visual_concept
+     * visual_metaphor
+     * visual_description
+     * image_prompt
+     * character_role
+     * shot_type
      */
     private function buildVisualInstruction(
         Scene $scene,
         array $options
     ): string {
+        $visualConcept = trim((string) (
+            $options['visual_concept']
+            ?? $scene->visual_concept
+            ?? ''
+        ));
+
+        $visualMetaphor = trim((string) (
+            $options['visual_metaphor']
+            ?? $scene->visual_metaphor
+            ?? ''
+        ));
+
+        $visualDescription = trim((string) (
+            $options['visual_description']
+            ?? $scene->visual_description
+            ?? ''
+        ));
+
+        $imagePrompt = trim((string) (
+            $options['image_prompt']
+            ?? $scene->image_prompt
+            ?? ''
+        ));
+
+        $characterRole = trim((string) (
+            $options['character_role']
+            ?? $scene->character_role
+            ?? ''
+        ));
+
+        $shotType = trim((string) (
+            $options['shot_type']
+            ?? $scene->shot_type
+            ?? ''
+        ));
+
         $instructions = [
             'VISUAL DIRECTION',
             '',
@@ -459,26 +520,45 @@ class FluxProvider implements ImageProvider
             'Prioritize visual clarity and narrative relevance.',
         ];
 
-        if (!empty($options['character_role'])) {
+        if ($visualConcept !== '') {
             $instructions[] = '';
-            $instructions[] =
-                'Character role: ' . $options['character_role'] . '.';
+            $instructions[] = 'VISUAL CONCEPT:';
+            $instructions[] = $visualConcept;
         }
 
-        if (!empty($options['shot_type'])) {
-            $instructions[] =
-                'Shot type: ' . $options['shot_type'] . '.';
+        if ($visualMetaphor !== '') {
+            $instructions[] = '';
+            $instructions[] = 'VISUAL METAPHOR:';
+            $instructions[] = $visualMetaphor;
         }
 
-        if (!empty($options['visual_metaphor'])) {
-            $instructions[] =
-                'Visual metaphor: '
-                . $options['visual_metaphor']
-                . '.';
+        if ($visualDescription !== '') {
+            $instructions[] = '';
+            $instructions[] = 'VISUAL DESCRIPTION:';
+            $instructions[] = $visualDescription;
+        }
+
+        if ($imagePrompt !== '') {
+            $instructions[] = '';
+            $instructions[] = 'IMAGE PROMPT:';
+            $instructions[] = $imagePrompt;
+        }
+
+        if ($characterRole !== '') {
+            $instructions[] = '';
+            $instructions[] = 'CHARACTER ROLE:';
+            $instructions[] = $characterRole;
+        }
+
+        if ($shotType !== '') {
+            $instructions[] = '';
+            $instructions[] = 'SHOT TYPE:';
+            $instructions[] = $shotType;
         }
 
         return implode("\n", $instructions);
     }
+
 
     /**
      * Convierte las referencias locales en Base64.
