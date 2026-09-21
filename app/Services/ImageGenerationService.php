@@ -25,30 +25,7 @@ class ImageGenerationService
         ]);
 
         try {
-            $references = [];
-
-            /*
-             * IMPORTANT:
-             *
-             * Character references are ONLY sent when the scene
-             * explicitly contains the Detective.
-             *
-             * Generic stickmen must NEVER receive the Detective
-             * reference images.
-             */
-            if ($scene->usesDetective()) {
-                if ($project->character?->reference_sheet_path) {
-                    $references[] = $project
-                        ->character
-                        ->reference_sheet_path;
-                }
-
-                if ($project->character?->portrait_reference_path) {
-                    $references[] = $project
-                        ->character
-                        ->portrait_reference_path;
-                }
-            }
+            $references = $this->buildReferences($scene, $project);
 
             $result = $this->provider->generateImage(
                 $scene,
@@ -63,7 +40,7 @@ class ImageGenerationService
 
                     'visual_metaphor' => $scene->visual_metaphor,
 
-                    'uses_character_reference' => $scene->usesDetective(),
+                    'uses_character_reference' => !empty($references),
                 ]
             );
 
@@ -114,6 +91,77 @@ class ImageGenerationService
 
             throw $e;
         }
+    }
+
+    /**
+     * Construye las referencias que deben enviarse a FLUX
+     * según el tipo de personajes utilizado por la escena.
+     *
+     * Las claves son semánticas para que FluxProvider pueda
+     * saber qué representa cada imagen.
+     */
+    private function buildReferences(
+        Scene $scene,
+        Project $project
+    ): array {
+        $references = [];
+
+        $characterRole = $scene->character_role;
+
+        /*
+         * ---------------------------------------------------------
+         * DETECTIVE
+         * ---------------------------------------------------------
+         */
+
+        if (
+            in_array(
+                $characterRole,
+                [
+                    'detective',
+                    'detective_and_generic_stickmen',
+                ],
+                true
+            )
+        ) {
+            if ($project->character?->reference_sheet_path) {
+                $references['detective_reference_sheet'] =
+                    $project->character->reference_sheet_path;
+            }
+
+            if ($project->character?->portrait_reference_path) {
+                $references['detective_portrait'] =
+                    $project->character->portrait_reference_path;
+            }
+        }
+
+        /*
+         * ---------------------------------------------------------
+         * GENERIC STICKMEN
+         * ---------------------------------------------------------
+         */
+
+        if (
+            in_array(
+                $characterRole,
+                [
+                    'generic_stickmen',
+                    'detective_and_generic_stickmen',
+                ],
+                true
+            )
+        ) {
+            $genericReference = config(
+                'youtube_studio.flux.generic_stickman_reference_path'
+            );
+
+            if ($genericReference) {
+                $references['generic_stickman'] =
+                    $genericReference;
+            }
+        }
+
+        return $references;
     }
 
     public function generateAll(Project $project): void
