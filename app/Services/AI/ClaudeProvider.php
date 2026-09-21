@@ -730,20 +730,40 @@ TRANSCRIPCIÓN / FUENTE:
 
 OBJETIVO DE DURACIÓN:
 
-Genera un vídeo de aproximadamente 8 minutos.
+Genera un vídeo pensado para una duración aproximada de 8 minutos.
 
-El guion debe tener aproximadamente 1.050–1.250 palabras,
-con un objetivo ideal cercano a 1.150 palabras.
+Rango aceptable:
+- mínimo: 7 minutos y 30 segundos
+- máximo: 10 minutos
+- objetivo ideal: alrededor de 8 minutos
 
-No añadas relleno para alcanzar la longitud.
+La duración debe conseguirse mediante una narración completa, natural y sustancial.
+No alargues el guion artificialmente con repeticiones, frases vacías o explicaciones redundantes.
 
-Desarrolla suficientemente el contexto, las causas, el funcionamiento,
-las consecuencias y las implicaciones del tema cuando la fuente permita
-hacerlo.
+La narración debería situarse aproximadamente entre 1.050 y 1.300 palabras,
+ajustándose al ritmo natural de una narración de YouTube en español.
 
-Genera aproximadamente 40–50 escenas visuales.
+ESCENAS
 
-El objetivo habitual es 42–48 escenas, pero adapta el número al contenido.
+Genera aproximadamente entre 40 y 55 escenas.
+
+No intentes alcanzar un número exacto de escenas.
+
+Crea una nueva escena cuando exista un cambio visual significativo:
+- cambia la idea que se está explicando;
+- cambia el concepto o metáfora visual;
+- cambia el escenario;
+- cambia el foco de atención;
+- aparece un elemento visual relevante;
+- conviene cambiar el encuadre para mantener el ritmo.
+
+No dividas artificialmente una misma idea en varias escenas únicamente para aumentar
+el número de escenas.
+
+Tampoco agrupes demasiadas ideas diferentes dentro de una sola escena.
+
+Como referencia, un vídeo de aproximadamente 8 minutos normalmente debería terminar
+alrededor de 44–50 escenas, aunque el número final puede variar según el contenido.
 
 La narración de las escenas debe cubrir TODO el guion y mantener el orden
 narrativo.

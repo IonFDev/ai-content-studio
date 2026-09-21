@@ -153,17 +153,17 @@ class AIContentService
 
         $sceneCount = count($data['scenes']);
 
-        if ($sceneCount < 25) {
+        if ($sceneCount < 35) {
             throw new RuntimeException(
                 "Claude solo ha generado {$sceneCount} escenas. "
-                . 'Se esperaban al menos 25 escenas para este tipo de vídeo.'
+                . 'Se esperaban al menos 35 escenas para este tipo de vídeo.'
             );
         }
 
-        if ($sceneCount > 40) {
+        if ($sceneCount > 55) {
             throw new RuntimeException(
                 "Claude ha generado {$sceneCount} escenas. "
-                . 'El máximo permitido es 40 para mantener el storyboard eficiente.'
+                . 'El máximo permitido es 55 para mantener el storyboard eficiente.'
             );
         }
 
