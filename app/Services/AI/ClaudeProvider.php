@@ -617,6 +617,79 @@ La metáfora debe ayudar a comprender la narración.
 
 Evita representar literalmente cada concepto cuando una metáfora editorial resulte más interesante.
 
+Todas las escenas deben poder representarse como ilustraciones editoriales
+adultas y no gráficas.
+
+Cuando la narración trate temas potencialmente sensibles, no los representes
+literalmente si existe una alternativa visual editorial.
+
+Prioriza:
+
+-metáforas
+-símbolos
+-objetos
+-arquitectura
+-paisajes
+-máquinas
+-documentos
+-siluetas
+-composiciones abstractas
+-contraste de escala
+-situaciones no gráficas
+
+No introduzcas gratuitamente:
+
+-desnudez
+-contenido sexual
+-contenido erótico
+-sangre
+-heridas gráficas
+-cadáveres
+-mutilaciones
+-violencia gráfica
+-armas
+-autolesiones
+-drogas
+-explotación sexual
+-situaciones sexuales
+-menores en situaciones ambiguas o sensibles
+
+Si la narración menciona alguno de estos temas, busca una representación
+visual indirecta y editorial que permita comprender la idea sin representar
+el contenido sensible literalmente.
+
+Ejemplo:
+
+Narración:
+"El mercado sufrió una fuerte caída."
+
+Representación adecuada:
+"Una estructura financiera descendiendo bruscamente por una pendiente."
+
+No representar:
+"Personas cayendo desde edificios."
+
+Ejemplo:
+
+Narración:
+"El conflicto provocó enormes pérdidas."
+
+Representación adecuada:
+"Dos estructuras enfrentadas mientras una gran cantidad de recursos
+se desplaza hacia una zona oscura."
+
+No representar:
+"Personas heridas o escenas de violencia."
+
+Nunca añadas contenido sensible solamente para hacer una metáfora
+más dramática.
+
+La seguridad y claridad visual tienen prioridad sobre el dramatismo.
+
+El image_prompt debe describir únicamente la representación visual final,
+no la narración completa ni acontecimientos sensibles que no necesiten
+aparecer literalmente.
+
 ==================================================
 15. COMPOSICIÓN
 ==================================================
@@ -1177,10 +1250,10 @@ PROMPT;
             );
         }
 
-        if ($sceneCount > 50) {
+        if ($sceneCount > 56) {
             throw new RuntimeException(
                 "Claude ha generado {$sceneCount} escenas. "
-                . 'El máximo permitido es 50 para mantener el storyboard eficiente.'
+                . 'El máximo permitido es 55 para mantener el storyboard eficiente.'
             );
         }
 

@@ -7,14 +7,19 @@ use App\Models\Scene;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
+use app\Services\Images\FluxPromptSanitizer;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class FluxProvider implements ImageProvider
-{
+{   
+    public function __construct(
+        private readonly FluxPromptSanitizer $promptSanitizer
+    ) {
+    }
     private const API_URL = 'https://api.bfl.ai/v1/flux-2-pro';
 
-    private const STYLE_BIBLE =
-    <<<'STYLE'
+    private const STYLE_BIBLE = <<<STYLE
     VISUAL STYLE BIBLE — STICKMAN CASEBOOK
 
     GLOBAL VISUAL LANGUAGE
@@ -22,14 +27,15 @@ class FluxProvider implements ImageProvider
     Create every image as part of the same coherent editorial cartoon universe.
 
     Style:
-    - Adult editorial cartoon illustration.
-    - 2D illustrated artwork.
+    - Editorial spot-illustration style, in the tradition of The New Yorker, The Economist and Bloomberg Businessweek.
+    - 2D illustrated artwork for a general, sophisticated readership.
     - Clean, controlled black linework.
     - Simplified geometric forms.
     - Strong readable silhouettes.
     - Moderate visual detail.
     - Sophisticated editorial composition.
-    - Restrained visual humor.
+    - Restrained, dry visual humor — never cute, playful or whimsical.
+    - Muted, restrained editorial color palette. Avoid bright saturated primary colors.
     - Flat illustration with subtle visual depth.
     - Consistent line weight.
     - Clean shapes and controlled proportions.
@@ -158,7 +164,7 @@ class FluxProvider implements ImageProvider
 
     Do not ignore the requested camera distance.
 
-    STYLE CONSISTENCY
+    "STYLE CONSISTENCY"
 
     Every generated image must look as if it belongs to the same illustration system and the same YouTube channel.
 
@@ -182,10 +188,6 @@ class FluxProvider implements ImageProvider
     - manga,
     - Pixar-like rendering,
     - Disney-like rendering,
-    - chibi,
-    - kawaii,
-    - children's book illustration,
-    - preschool cartoon style,
     - hyper-detailed realism,
     - glossy 3D characters,
     - excessive gradients,
@@ -193,6 +195,7 @@ class FluxProvider implements ImageProvider
     - random decorative elements,
     - inconsistent character designs.
     STYLE;
+
 
     public function generateImage(
         Scene $scene,
@@ -271,11 +274,22 @@ class FluxProvider implements ImageProvider
             $options
         );
 
-        $finalPrompt = implode("\n\n", array_filter([
+        $rawPrompt = implode("\n\n", array_filter([
             self::STYLE_BIBLE,
             $referenceInstruction,
             $visualInstruction,
         ]));
+
+        $finalPrompt = $this->promptSanitizer->sanitize(
+            $rawPrompt
+        );
+
+        Log::info('FLUX FINAL PROMPT', [
+            'scene_id' => $scene->id,
+            'character_role' => $scene->character_role,
+            'shot_type' => $scene->shot_type,
+            'prompt' => $finalPrompt,
+        ]);
 
         /*
          * ---------------------------------------------------------
@@ -288,6 +302,7 @@ class FluxProvider implements ImageProvider
             'width' => $width,
             'height' => $height,
             'output_format' => 'png',
+            'safety_tolerance' => (int) config('youtube_studio.flux.safety_tolerance', 5),
         ];
 
         /*
@@ -302,7 +317,7 @@ class FluxProvider implements ImageProvider
 
             $payload[$parameterName] = $base64Image;
         }
-
+     
         try {
             $response = Http::withHeaders([
                 'x-key' => $apiKey,
@@ -351,7 +366,10 @@ class FluxProvider implements ImageProvider
             apiKey: $apiKey,
             timeout: $timeout,
             pollInterval: $pollInterval,
-            maxPollAttempts: $maxPollAttempts
+            maxPollAttempts: $maxPollAttempts,
+            sceneId: $scene->id,
+            finalPrompt: $finalPrompt,
+            references: $references,
         );
 
         $imageUrl = $result['result']['sample'] ?? null;
@@ -559,7 +577,6 @@ class FluxProvider implements ImageProvider
         return implode("\n", $instructions);
     }
 
-
     /**
      * Convierte las referencias locales en Base64.
      */
@@ -666,13 +683,12 @@ class FluxProvider implements ImageProvider
         string $apiKey,
         int $timeout,
         int $pollInterval,
-        int $maxPollAttempts
+        int $maxPollAttempts,
+        int|string|null $sceneId = null,
+        string $finalPrompt = '',
+        array $references = [],
     ): array {
-        for (
-            $attempt = 1;
-            $attempt <= $maxPollAttempts;
-            $attempt++
-        ) {
+        for ($attempt = 1; $attempt <= $maxPollAttempts; $attempt++) {
             try {
                 $response = Http::withHeaders([
                     'x-key' => $apiKey,
@@ -683,33 +699,27 @@ class FluxProvider implements ImageProvider
             } catch (ConnectionException $e) {
                 if ($attempt >= $maxPollAttempts) {
                     throw new RuntimeException(
-                        'Error conectando con el polling de FLUX: '
-                        . $e->getMessage(),
+                        'Error conectando con el polling de FLUX: ' . $e->getMessage(),
                         0,
                         $e
                     );
                 }
 
                 sleep($pollInterval);
-
                 continue;
             }
 
             if ($response->failed()) {
                 throw new RuntimeException(
                     'Error consultando el resultado de FLUX. HTTP '
-                    . $response->status()
-                    . ': '
-                    . $response->body()
+                    . $response->status() . ': ' . $response->body()
                 );
             }
 
             $data = $response->json();
 
             if (!is_array($data)) {
-                throw new RuntimeException(
-                    'FLUX ha devuelto un polling inválido.'
-                );
+                throw new RuntimeException('FLUX ha devuelto un polling inválido.');
             }
 
             $status = $data['status'] ?? null;
@@ -721,25 +731,31 @@ class FluxProvider implements ImageProvider
             if (
                 in_array(
                     $status,
-                    [
-                        'Error',
-                        'Failed',
-                        'RequestFailed',
-                        'Request Moderated',
-                        'Content Moderated',
-                    ],
+                    ['Error', 'Failed', 'RequestFailed', 'Request Moderated', 'Content Moderated'],
                     true
                 )
             ) {
-                $message =
-                    $data['error']
-                    ?? $data['message']
-                    ?? $status
-                    ?? 'Error desconocido de FLUX.';
+                $reasons = $data['details']['Moderation Reasons'] ?? [];
 
-                throw new RuntimeException(
-                    'FLUX ha fallado: ' . $message
-                );
+                Log::error('FLUX CONTENT POLICY', [
+                    'scene_id' => $sceneId,
+                    'status' => $status,
+                    'prompt' => $finalPrompt,
+                    'references' => array_keys($references),
+                ]);
+
+                Log::warning('FLUX moderó o falló la petición', [
+                    'scene_id' => $sceneId,
+                    'status' => $status,
+                    'moderation_reasons' => $reasons,
+                    'raw' => $data,
+                ]);
+
+                $message = !empty($reasons)
+                    ? implode(', ', $reasons)
+                    : ($data['error'] ?? $data['message'] ?? $status ?? 'Error desconocido de FLUX.');
+
+                throw new RuntimeException('FLUX ha fallado (' . $status . '): ' . $message);
             }
 
             if ($attempt < $maxPollAttempts) {
@@ -749,8 +765,7 @@ class FluxProvider implements ImageProvider
 
         throw new RuntimeException(
             'Timeout esperando la generación de FLUX después de '
-            . $maxPollAttempts
-            . ' intentos.'
+            . $maxPollAttempts . ' intentos.'
         );
     }
 
