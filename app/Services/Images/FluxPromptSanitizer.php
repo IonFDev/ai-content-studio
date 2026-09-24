@@ -108,8 +108,9 @@ class FluxPromptSanitizer
          * Evitamos texto largo generado dentro de la ilustración.
          */
         $prompt .= "\n\n"
-            . "No readable text, captions, paragraphs, labels, "
-            . "statistics or interface text inside the generated image.";
+        . "Clean presentation-ready artwork with minimal embedded typography. "
+        . "Production text, labels, statistics and exact numerical information "
+        . "are added during video editing.";
 
         return trim($prompt);
     }

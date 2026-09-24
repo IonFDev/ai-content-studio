@@ -12,189 +12,23 @@ use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class FluxProvider implements ImageProvider
-{   
+{
     public function __construct(
         private readonly FluxPromptSanitizer $promptSanitizer
-    ) {
-    }
+    ) {}
     private const API_URL = 'https://api.bfl.ai/v1/flux-2-pro';
 
     private const STYLE_BIBLE = <<<STYLE
-    VISUAL STYLE BIBLE — STICKMAN CASEBOOK
+Premium 2D editorial cartoon illustration in a coherent Stickman Casebook visual universe.
 
-    GLOBAL VISUAL LANGUAGE
+Clean controlled black linework, simplified geometric shapes, strong expressive silhouettes, subtle depth, restrained sophisticated colors and polished magazine illustration quality.
 
-    Create every image as part of the same coherent editorial cartoon universe.
+Use clear visual hierarchy, a strong focal point, natural perspective, foreground and background separation, and moderate visual detail.
 
-    Style:
-    - Editorial spot-illustration style, in the tradition of The New Yorker, The Economist and Bloomberg Businessweek.
-    - 2D illustrated artwork for a general, sophisticated readership.
-    - Clean, controlled black linework.
-    - Simplified geometric forms.
-    - Strong readable silhouettes.
-    - Moderate visual detail.
-    - Sophisticated editorial composition.
-    - Restrained, dry visual humor — never cute, playful or whimsical.
-    - Muted, restrained editorial color palette. Avoid bright saturated primary colors.
-    - Flat illustration with subtle visual depth.
-    - Consistent line weight.
-    - Clean shapes and controlled proportions.
-    - Professional magazine/editorial illustration quality.
+All characters, objects, environments and technology share the same coherent illustration language.
 
-    The image must feel intentionally illustrated, not like a collection of isolated cartoon objects.
-
-    BACKGROUND AND ENVIRONMENT
-
-    Environments should contain enough visual information to communicate the situation clearly.
-
-    Use:
-    - foreground elements,
-    - middle ground,
-    - background,
-    - overlapping objects,
-    - perspective,
-    - scale differences,
-    - architectural or environmental context,
-    - controlled negative space.
-
-    Avoid empty backgrounds unless the scene specifically requires simplicity.
-
-    Avoid excessive detail or visual clutter.
-
-    CHARACTER SYSTEM
-
-    All human figures belong to the same stickman-based visual universe.
-
-    Generic stickmen:
-    - completely anonymous figures,
-    - simple circular white heads,
-    - simple black outlines,
-    - simple black stick bodies,
-    - minimal facial features,
-    - consistent proportions,
-    - no clothing,
-    - no accessories,
-    - no distinctive hairstyle,
-    - no distinctive facial identity.
-
-    The Detective Stickman is a separate recurring character with his own reference identity.
-
-    Never merge the Generic Stickman design with the Detective design.
-
-    Never give generic stickmen the Detective's clothing, hat, magnifying glass or other identifying features.
-
-    COMPOSITION
-
-    Prioritize visual storytelling over decoration.
-
-    The image must communicate the scene's central idea immediately.
-
-    Use:
-    - clear focal points,
-    - asymmetry when useful,
-    - diagonals,
-    - scale contrast,
-    - visual hierarchy,
-    - foreground/background separation,
-    - strong silhouettes.
-
-    Avoid compositions where the important action is visually lost.
-
-    CHARACTER SCALE
-
-    Characters should serve the composition.
-
-    The Detective normally occupies approximately 15–40% of the image height.
-
-    In wide establishing shots he may be significantly smaller.
-
-    Do not automatically place the Detective in the center.
-
-    Do not make the Detective dominate the frame unless the scene specifically requires it.
-
-    EDITORIAL VISUAL STORYTELLING
-
-    Prefer visual metaphors, exaggeration and symbolic situations when they communicate the narration better than literal representation.
-
-    Financial concepts should be represented visually through:
-    - people,
-    - environments,
-    - objects,
-    - exaggerated situations,
-    - symbolic structures,
-    - scale,
-    - movement,
-    - contrast.
-
-    Do not automatically create generic financial charts.
-
-    Do not automatically create floating numbers, labels or UI elements.
-
-    MANUAL PRODUCTION ELEMENTS
-
-    Never rely on generated text, labels, percentages, precise figures, tables, charts or numerical information when those elements are specified as manual production elements.
-
-    Those elements will be added later during post-production.
-
-    Do not invent readable text inside the image.
-
-    Do not generate fake statistics or fake labels.
-
-    CAMERA
-
-    Respect the requested shot type.
-
-    Wide:
-    - establish environment and relationships.
-
-    Medium:
-    - emphasize characters and actions.
-
-    Close-up:
-    - emphasize expression, object or important detail.
-
-    Extreme close-up:
-    - emphasize a specific visual detail.
-
-    Top-down:
-    - use clear overhead composition.
-
-    Low-angle:
-    - create visual importance or scale.
-
-    Do not ignore the requested camera distance.
-
-    "STYLE CONSISTENCY"
-
-    Every generated image must look as if it belongs to the same illustration system and the same YouTube channel.
-
-    Maintain consistency in:
-    - line quality,
-    - character proportions,
-    - color treatment,
-    - level of detail,
-    - geometric simplification,
-    - visual depth,
-    - editorial tone.
-
-    NEGATIVE STYLE RULES
-
-    Do not use:
-    - photorealism,
-    - realistic photography,
-    - 3D rendering,
-    - CGI,
-    - anime,
-    - manga,
-    - Pixar-like rendering,
-    - Disney-like rendering,
-    - hyper-detailed realism,
-    - glossy 3D characters,
-    - excessive gradients,
-    - excessive visual noise,
-    - random decorative elements,
-    - inconsistent character designs.
-    STYLE;
+When the Detective Stickman is present, preserve his established character identity, proportions and visual design from the provided reference images.
+STYLE;
 
 
     public function generateImage(
@@ -317,7 +151,7 @@ class FluxProvider implements ImageProvider
 
             $payload[$parameterName] = $base64Image;
         }
-     
+
         try {
             $response = Http::withHeaders([
                 'x-key' => $apiKey,
@@ -329,7 +163,7 @@ class FluxProvider implements ImageProvider
         } catch (ConnectionException $e) {
             throw new RuntimeException(
                 'No se pudo conectar con la API de Black Forest Labs: '
-                . $e->getMessage(),
+                    . $e->getMessage(),
                 0,
                 $e
             );
@@ -338,9 +172,9 @@ class FluxProvider implements ImageProvider
         if ($response->failed()) {
             throw new RuntimeException(
                 'FLUX ha rechazado la petición. HTTP '
-                . $response->status()
-                . ': '
-                . $response->body()
+                    . $response->status()
+                    . ': '
+                    . $response->body()
             );
         }
 
@@ -357,7 +191,7 @@ class FluxProvider implements ImageProvider
         if (!$pollingUrl) {
             throw new RuntimeException(
                 'FLUX no ha devuelto polling_url. Respuesta: '
-                . $response->body()
+                    . $response->body()
             );
         }
 
@@ -377,7 +211,7 @@ class FluxProvider implements ImageProvider
         if (!$imageUrl) {
             throw new RuntimeException(
                 'FLUX ha terminado pero no ha devuelto '
-                . 'la URL de la imagen.'
+                    . 'la URL de la imagen.'
             );
         }
 
@@ -529,52 +363,115 @@ class FluxProvider implements ImageProvider
             ?? ''
         ));
 
-        $instructions = [
-            'VISUAL DIRECTION',
-            '',
-            'Create the scene as an adult editorial cartoon illustration.',
-            'The image must visually support the narration and communicate the main idea of the scene.',
-            'Do not create a generic decorative image that is merely related to the topic.',
-            'Prioritize visual clarity and narrative relevance.',
-        ];
+        $instructions = [];
+
+        /*
+    |--------------------------------------------------------------------------
+    | Core visual idea
+    |--------------------------------------------------------------------------
+    */
 
         if ($visualConcept !== '') {
-            $instructions[] = '';
-            $instructions[] = 'VISUAL CONCEPT:';
-            $instructions[] = $visualConcept;
+            $instructions[] =
+                "The central visual idea is: {$visualConcept}.";
         }
+
+        /*
+    |--------------------------------------------------------------------------
+    | Visual metaphor
+    |--------------------------------------------------------------------------
+    */
 
         if ($visualMetaphor !== '') {
-            $instructions[] = '';
-            $instructions[] = 'VISUAL METAPHOR:';
-            $instructions[] = $visualMetaphor;
+            $instructions[] =
+                "Use this visual metaphor: {$visualMetaphor}.";
         }
+
+        /*
+    |--------------------------------------------------------------------------
+    | Physical scene
+    |--------------------------------------------------------------------------
+    */
 
         if ($visualDescription !== '') {
-            $instructions[] = '';
-            $instructions[] = 'VISUAL DESCRIPTION:';
-            $instructions[] = $visualDescription;
+            $instructions[] =
+                "Scene composition: {$visualDescription}.";
         }
+
+        /*
+    |--------------------------------------------------------------------------
+    | Image prompt
+    |--------------------------------------------------------------------------
+    */
 
         if ($imagePrompt !== '') {
-            $instructions[] = '';
-            $instructions[] = 'IMAGE PROMPT:';
-            $instructions[] = $imagePrompt;
+            $instructions[] =
+                "Render the composition as follows: {$imagePrompt}.";
         }
 
-        if ($characterRole !== '') {
-            $instructions[] = '';
-            $instructions[] = 'CHARACTER ROLE:';
-            $instructions[] = $characterRole;
+        /*
+    |--------------------------------------------------------------------------
+    | Character role
+    |--------------------------------------------------------------------------
+    */
+
+        switch ($characterRole) {
+            case 'detective':
+                $instructions[] =
+                    'The Detective Stickman is the main character in the scene.';
+                break;
+
+            case 'generic_stickmen':
+                $instructions[] =
+                    'Use anonymous generic stickmen as the human figures.';
+                break;
+
+            case 'detective_and_generic_stickmen':
+                $instructions[] =
+                    'Include the Detective Stickman together with anonymous generic stickmen.';
+                break;
         }
 
-        if ($shotType !== '') {
-            $instructions[] = '';
-            $instructions[] = 'SHOT TYPE:';
-            $instructions[] = $shotType;
+        /*
+    |--------------------------------------------------------------------------
+    | Shot type
+    |--------------------------------------------------------------------------
+    */
+
+        $shotDescriptions = [
+            'wide_establishing' =>
+            'Use a wide establishing composition showing the environment and relationships between elements.',
+
+            'wide' =>
+            'Use a wide composition with clear environmental context.',
+
+            'medium_wide' =>
+            'Use a medium-wide composition balancing characters, objects and environment.',
+
+            'medium' =>
+            'Use a medium composition focused on the main subject and surrounding action.',
+
+            'close_up' =>
+            'Use a close composition focused on the important subject or object.',
+
+            'extreme_close_up' =>
+            'Use an extreme close composition focused on a specific visual detail.',
+
+            'top_down' =>
+            'Use a clear overhead composition.',
+
+            'low_angle' =>
+            'Use a low-angle composition that emphasizes scale and visual importance.',
+        ];
+
+        if (isset($shotDescriptions[$shotType])) {
+            $instructions[] = $shotDescriptions[$shotType];
         }
 
-        return implode("\n", $instructions);
+        return implode(
+            "\n\n",
+            $instructions
+        );
     }
 
     /**
@@ -640,7 +537,7 @@ class FluxProvider implements ImageProvider
 
         throw new RuntimeException(
             'No se ha encontrado la imagen de referencia: '
-            . $referencePath
+                . $referencePath
         );
     }
 
@@ -674,7 +571,7 @@ class FluxProvider implements ImageProvider
 
         throw new RuntimeException(
             'No se pudo determinar el MIME de la imagen de referencia: '
-            . $referencePath
+                . $referencePath
         );
     }
 
@@ -712,7 +609,7 @@ class FluxProvider implements ImageProvider
             if ($response->failed()) {
                 throw new RuntimeException(
                     'Error consultando el resultado de FLUX. HTTP '
-                    . $response->status() . ': ' . $response->body()
+                        . $response->status() . ': ' . $response->body()
                 );
             }
 
@@ -765,7 +662,7 @@ class FluxProvider implements ImageProvider
 
         throw new RuntimeException(
             'Timeout esperando la generación de FLUX después de '
-            . $maxPollAttempts . ' intentos.'
+                . $maxPollAttempts . ' intentos.'
         );
     }
 
@@ -778,7 +675,7 @@ class FluxProvider implements ImageProvider
         } catch (ConnectionException $e) {
             throw new RuntimeException(
                 'No se pudo descargar la imagen generada por FLUX: '
-                . $e->getMessage(),
+                    . $e->getMessage(),
                 0,
                 $e
             );
@@ -787,7 +684,7 @@ class FluxProvider implements ImageProvider
         if ($response->failed()) {
             throw new RuntimeException(
                 'No se pudo descargar la imagen de FLUX. HTTP '
-                . $response->status()
+                    . $response->status()
             );
         }
 
