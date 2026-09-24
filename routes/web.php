@@ -5,6 +5,8 @@ use App\Http\Controllers\ProjectActionController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\SettingsController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\ProjectPackageController;
+
 Route::get('/', DashboardController::class)->name('dashboard');
 Route::resource('projects', ProjectController::class);
 Route::post('/projects/{project}/transcribe', [ProjectActionController::class,'transcribe'])->name('projects.transcribe');
@@ -22,3 +24,4 @@ Route::get('/characters/{character}/image/{type}', [CharacterController::class,'
 Route::get('/settings', [SettingsController::class,'index'])->name('settings');
 Route::get('/projects/{project}/production-guide',[ProjectActionController::class, 'productionGuide'])->name('projects.production-guide');
 Route::post('/projects/{project}/generate-voice',[ProjectActionController::class, 'generateVoice'])->name('projects.generate-voice');
+Route::post('/projects/{project}/package',[ProjectPackageController::class, 'download'])->name('projects.package');

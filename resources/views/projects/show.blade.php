@@ -329,6 +329,21 @@
 
                     </form>
 
+                    <form
+                        method="POST"
+                        action="{{ route('projects.package', $project) }}"
+                        class="d-inline"
+                    >
+                        @csrf
+
+                        <button
+                            type="submit"
+                            class="btn btn-outline-dark"
+                        >
+                            Descargar paquete ZIP
+                        </button>
+                    </form>
+
                 </div>
 
                 <hr>
