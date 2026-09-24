@@ -7,7 +7,7 @@ use App\Models\Scene;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
-use app\Services\Images\FluxPromptSanitizer;
+use App\Services\Images\FluxPromptSanitizer;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 

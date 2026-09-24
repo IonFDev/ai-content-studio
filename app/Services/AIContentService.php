@@ -11,7 +11,8 @@ use RuntimeException;
 class AIContentService
 {
     public function __construct(
-        private readonly AIProvider $provider
+        private readonly AIProvider $provider,
+        private readonly StoryboardService $storyboardService
     ) {
     }
 
@@ -57,6 +58,193 @@ class AIContentService
         });
 
         return $project->refresh();
+    }
+
+    /**
+     * Recupera la última respuesta válida de Claude
+     * desde storage/logs/claude-response.txt.
+     *
+     * No realiza ninguna nueva llamada a Claude.
+     */
+    public function recoverFromClaudeLog(Project $project): Project
+    {
+        $logPath = storage_path('logs/claude-response.txt');
+
+        if (!is_file($logPath)) {
+            throw new RuntimeException(
+                'No existe el archivo storage/logs/claude-response.txt.'
+            );
+        }
+
+        $log = file_get_contents($logPath);
+
+        if ($log === false || trim($log) === '') {
+            throw new RuntimeException(
+                'El archivo claude-response.txt está vacío.'
+            );
+        }
+
+        $data = $this->extractLatestClaudeResponse($log);
+
+        $this->validateClaudeData($data);
+
+        DB::transaction(function () use ($project, $data) {
+            $video = $data['video'];
+            $content = $data['content'];
+
+            $project->update([
+                'youtube_title' => $video['title'] ?? null,
+                'youtube_description' => $video['description'] ?? null,
+                'youtube_keywords' => $video['keywords'] ?? [],
+                'youtube_hashtags' => $video['hashtags'] ?? [],
+                'thumbnail_idea' => $video['thumbnail_concept'] ?? null,
+                'thumbnail_text' => $video['thumbnail_text'] ?? null,
+                'script' => $content['script'] ?? null,
+                'status' => 'script_ready',
+            ]);
+
+            Storage::disk('local')->put(
+                "projects/{$project->id}/storyboard/content.json",
+                json_encode(
+                    $data,
+                    JSON_PRETTY_PRINT
+                    | JSON_UNESCAPED_UNICODE
+                    | JSON_UNESCAPED_SLASHES
+                )
+            );
+        });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Crear las escenas usando exactamente el flujo normal
+        |--------------------------------------------------------------------------
+        */
+
+        return $this->storyboardService->generate(
+            $project->refresh()
+        );
+    }
+
+    /**
+     * Extrae la última respuesta JSON completa y válida
+     * del archivo de log.
+     *
+     * El archivo puede contener múltiples respuestas de Claude.
+     */
+    private function extractLatestClaudeResponse(
+        string $log
+    ): array {
+        $length = strlen($log);
+
+        $lastValidResponse = null;
+
+        $depth = 0;
+        $start = null;
+
+        $inString = false;
+        $escaped = false;
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $log[$i];
+
+            /*
+            |--------------------------------------------------------------------------
+            | Dentro de una cadena JSON
+            |--------------------------------------------------------------------------
+            */
+
+            if ($inString) {
+                if ($escaped) {
+                    $escaped = false;
+                    continue;
+                }
+
+                if ($char === '\\') {
+                    $escaped = true;
+                    continue;
+                }
+
+                if ($char === '"') {
+                    $inString = false;
+                }
+
+                continue;
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Inicio de cadena
+            |--------------------------------------------------------------------------
+            */
+
+            if ($char === '"') {
+                $inString = true;
+                continue;
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Inicio de objeto
+            |--------------------------------------------------------------------------
+            */
+
+            if ($char === '{') {
+                if ($depth === 0) {
+                    $start = $i;
+                }
+
+                $depth++;
+
+                continue;
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Fin de objeto
+            |--------------------------------------------------------------------------
+            */
+
+            if ($char === '}') {
+                if ($depth === 0) {
+                    continue;
+                }
+
+                $depth--;
+
+                if ($depth === 0 && $start !== null) {
+                    $candidate = substr(
+                        $log,
+                        $start,
+                        $i - $start + 1
+                    );
+
+                    $decoded = json_decode(
+                        $candidate,
+                        true
+                    );
+
+                    if (
+                        json_last_error() === JSON_ERROR_NONE
+                        && is_array($decoded)
+                        && isset($decoded['video'])
+                        && isset($decoded['content'])
+                        && isset($decoded['scenes'])
+                    ) {
+                        $lastValidResponse = $decoded;
+                    }
+
+                    $start = null;
+                }
+            }
+        }
+
+        if (!is_array($lastValidResponse)) {
+            throw new RuntimeException(
+                'No se ha encontrado ninguna respuesta JSON válida de Claude en claude-response.txt.'
+            );
+        }
+
+        return $lastValidResponse;
     }
 
     private function validateClaudeData(array $data): void
@@ -189,7 +377,7 @@ class AIContentService
 
             /*
             |--------------------------------------------------------------------------
-            | Campos obligatorios de la escena
+            | Campos obligatorios
             |--------------------------------------------------------------------------
             */
 
