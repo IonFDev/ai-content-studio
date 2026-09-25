@@ -9,6 +9,8 @@ use RuntimeException;
 
 class VoiceGenerationService
 {
+    private const FPS = 24;
+
     public function __construct(
         private VoiceProvider $provider
     ) {
@@ -30,7 +32,6 @@ class VoiceGenerationService
 
         $parts = [];
         $sceneOffsets = [];
-
         $currentOffset = 0;
 
         foreach ($scenes as $scene) {
@@ -53,9 +54,7 @@ class VoiceGenerationService
                 'end_char' => $start + $length - 1,
             ];
 
-            /*
-             * Dos saltos de línea entre escenas.
-             */
+            // Dos saltos de línea entre escenas.
             $currentOffset += $length + 2;
         }
 
@@ -82,6 +81,7 @@ class VoiceGenerationService
             'audio_path' => $audioPath,
             'timing_path' => $timingPath,
             'duration' => $timing['duration'],
+            'duration_timecode' => $timing['duration_timecode'],
             'scenes' => $timing['scenes'],
         ];
     }
@@ -111,12 +111,8 @@ class VoiceGenerationService
             );
         }
 
-        /*
-         * Comprobamos que ElevenLabs realmente nos ha devuelto
-         * el mismo número de caracteres que enviamos.
-         *
-         * Si no coincide, no inventamos timestamps.
-         */
+        // Comprobamos que ElevenLabs realmente nos ha devuelto
+        // el mismo número de caracteres que enviamos.
         $expectedCharacterCount = 0;
 
         foreach ($sceneOffsets as $offset) {
@@ -124,14 +120,7 @@ class VoiceGenerationService
                 $offset['end_char'] - $offset['start_char'] + 1;
         }
 
-        /*
-         * Entre escenas hay dos \n.
-         *
-         * Los caracteres de separación también forman parte
-         * del texto enviado, por lo que:
-         *
-         * total = caracteres de narraciones + separadores
-         */
+        // Entre escenas hay dos \n.
         $separatorCount = max(
             0,
             count($sceneOffsets) - 1
@@ -175,15 +164,27 @@ class VoiceGenerationService
 
             $timedScenes[] = [
                 'scene' => (int) $offset['scene']->order,
+
                 'image' => sprintf(
                     'images/%03d.jpg',
                     $offset['scene']->order
                 ),
+
                 'start' => round($start, 3),
+
                 'end' => round($end, 3),
+
                 'duration' => round(
                     $end - $start,
                     3
+                ),
+
+                'start_timecode' => $this->formatTimecode($start),
+
+                'end_timecode' => $this->formatTimecode($end),
+
+                'duration_timecode' => $this->formatTimecode(
+                    $end - $start
                 ),
             ];
         }
@@ -192,9 +193,57 @@ class VoiceGenerationService
 
         return [
             'audio' => 'audio/voiceover.mp3',
+
+            // Duración exacta en segundos para cálculos internos.
             'duration' => round($duration, 3),
+
+            // Duración en HH:MM:SS:FF a 24 fps.
+            'duration_timecode' => $this->formatTimecode($duration),
+
+            'fps' => self::FPS,
+
             'scenes' => $timedScenes,
         ];
+    }
+
+    private function formatTimecode(float $seconds): string
+    {
+        if ($seconds < 0) {
+            $seconds = 0;
+        }
+
+        $totalFrames = (int) round(
+            $seconds * self::FPS
+        );
+
+        $frames = $totalFrames % self::FPS;
+
+        $totalSeconds = intdiv(
+            $totalFrames,
+            self::FPS
+        );
+
+        $secondsPart = $totalSeconds % 60;
+
+        $totalMinutes = intdiv(
+            $totalSeconds,
+            60
+        );
+
+        $minutesPart = $totalMinutes % 60;
+
+        $hoursPart = intdiv(
+            $totalMinutes,
+            60
+        );
+
+        return sprintf(
+            '%02d:%02d:%02d:%02d',
+            $hoursPart,
+            $minutesPart,
+            $secondsPart,
+            $frames
+        );
     }
 
     private function saveAudio(
