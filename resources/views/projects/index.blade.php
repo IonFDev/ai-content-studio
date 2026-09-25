@@ -1,4 +1,277 @@
-@extends('layouts.app') @section('title','Proyectos · YouTube Studio') @section('content')
-<div class="d-flex justify-content-between align-items-center mb-4"><div><h1 class="h3 mb-1">Proyectos</h1><p class="text-secondary mb-0">Un proyecto representa un vídeo completo.</p></div><a href="{{ route('projects.create') }}" class="btn btn-primary">Nuevo proyecto</a></div>
-<div class="card"><div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Proyecto</th><th>Fuente</th><th>Estado</th><th>Escenas</th><th>Imágenes</th><th>Actualizado</th><th></th></tr></thead><tbody>@forelse($projects as $project)<tr><td><div class="fw-semibold">{{ $project->name }}</div><div class="small text-secondary">{{ $project->character?->name }}</div></td><td class="text-truncate" style="max-width:220px">{{ $project->source_title ?: $project->source_url }}</td><td><x-status-badge :status="$project->status" /></td><td>{{ $project->scenes_count }}</td><td>{{ $project->generatedImageCount() }}</td><td>{{ $project->updated_at->format('d/m/Y H:i') }}</td><td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ route('projects.show',$project) }}">Abrir</a></td></tr>@empty<tr><td colspan="7" class="text-center py-5 text-secondary">No hay proyectos.</td></tr>@endforelse</tbody></table></div></div><div class="mt-3">{{ $projects->links() }}</div>
+@extends('layouts.app')
+
+@section('title', 'Proyectos · YouTube Studio')
+@section('section', 'Proyectos')
+
+@section('content')
+
+    <div class="projects-page">
+
+        {{-- HEADER --}}
+        <div class="page-header">
+
+            <div>
+                <div class="eyebrow">
+                    Producción
+                </div>
+
+                <h1 class="page-title">
+                    Proyectos
+                </h1>
+
+                <p class="page-description">
+                    Cada proyecto contiene la producción completa de un vídeo.
+                </p>
+            </div>
+
+            <div class="page-header-actions">
+                <a
+                    href="{{ route('projects.create') }}"
+                    class="ui-btn ui-btn-primary"
+                >
+                    <span class="ui-btn-icon">+</span>
+                    Nuevo proyecto
+                </a>
+            </div>
+
+        </div>
+
+
+        {{-- PROJECT LIST --}}
+        <section class="projects-panel">
+
+            <div class="projects-panel-header">
+
+                <div class="projects-panel-title">
+                    <span>Todos los proyectos</span>
+
+                    <span class="projects-count">
+                        {{ $projects->total() }}
+                    </span>
+                </div>
+
+            </div>
+
+
+            @if($projects->count())
+
+                <div class="projects-table-wrap">
+
+                    <table class="projects-table">
+
+                        <thead>
+                            <tr>
+                                <th class="project-col-main">
+                                    Proyecto
+                                </th>
+
+                                <th>
+                                    Fuente
+                                </th>
+
+                                <th>
+                                    Estado
+                                </th>
+
+                                <th class="project-col-center">
+                                    Escenas
+                                </th>
+
+                                <th class="project-col-center">
+                                    Imágenes
+                                </th>
+
+                                <th>
+                                    Actualizado
+                                </th>
+
+                                <th class="project-col-action">
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            @foreach($projects as $project)
+
+                                <tr class="project-row">
+
+                                    {{-- PROJECT --}}
+                                    <td>
+
+                                        <a
+                                            href="{{ route('projects.show', $project) }}"
+                                            class="project-name-link"
+                                        >
+                                            <span class="project-name">
+                                                {{ $project->name }}
+                                            </span>
+
+                                            @if($project->character?->name)
+                                                <span class="project-character">
+                                                    {{ $project->character->name }}
+                                                </span>
+                                            @endif
+                                        </a>
+
+                                    </td>
+
+
+                                    {{-- SOURCE --}}
+                                    <td>
+
+                                        <div class="project-source">
+
+                                            <span
+                                                class="project-source-title"
+                                                title="{{ $project->source_title ?: $project->source_url }}"
+                                            >
+                                                {{ $project->source_title ?: $project->source_url }}
+                                            </span>
+
+                                            @if($project->source_title && $project->source_url)
+                                                <span class="project-source-url">
+                                                    {{ parse_url($project->source_url, PHP_URL_HOST) }}
+                                                </span>
+                                            @endif
+
+                                        </div>
+
+                                    </td>
+
+
+                                    {{-- STATUS --}}
+                                    <td>
+                                        <x-status-badge
+                                            :status="$project->status"
+                                        />
+                                    </td>
+
+
+                                    {{-- SCENES --}}
+                                    <td class="project-metric">
+                                        {{ $project->scenes_count }}
+                                    </td>
+
+
+                                    {{-- IMAGES --}}
+                                    <td class="project-metric">
+
+                                        @php
+                                            $generatedImages = $project->generatedImageCount();
+                                            $sceneCount = max((int) $project->scenes_count, 1);
+                                            $imageProgress = min(
+                                                100,
+                                                round(($generatedImages / $sceneCount) * 100)
+                                            );
+                                        @endphp
+
+                                        <div class="project-images">
+
+                                            <span class="project-metric-value">
+                                                {{ $generatedImages }}
+                                            </span>
+
+                                            <span class="project-progress">
+                                                <span
+                                                    class="project-progress-fill"
+                                                    style="width: {{ $imageProgress }}%"
+                                                ></span>
+                                            </span>
+
+                                        </div>
+
+                                    </td>
+
+
+                                    {{-- UPDATED --}}
+                                    <td>
+
+                                        <div class="project-updated">
+
+                                            <span class="project-updated-date">
+                                                {{ $project->updated_at->format('d/m/Y') }}
+                                            </span>
+
+                                            <span class="project-updated-time">
+                                                {{ $project->updated_at->format('H:i') }}
+                                            </span>
+
+                                        </div>
+
+                                    </td>
+
+
+                                    {{-- ACTION --}}
+                                    <td class="project-action">
+
+                                        <a
+                                            href="{{ route('projects.show', $project) }}"
+                                            class="project-open"
+                                            aria-label="Abrir {{ $project->name }}"
+                                        >
+                                            <span>Abrir</span>
+
+                                            <svg
+                                                viewBox="0 0 16 16"
+                                                aria-hidden="true"
+                                            >
+                                                <path d="M5 2.75 10.25 8 5 13.25l1.5 1.5L13.25 8 6.5 1.25 5 2.75Z"/>
+                                            </svg>
+                                        </a>
+
+                                    </td>
+
+                                </tr>
+
+                            @endforeach
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            @else
+
+                {{-- EMPTY STATE --}}
+                <div class="projects-empty">
+
+                    <div class="projects-empty-icon">
+                        +
+                    </div>
+
+                    <h2>
+                        Todavía no hay proyectos
+                    </h2>
+
+                    <p>
+                        Crea tu primer proyecto para empezar a producir un vídeo.
+                    </p>
+
+                    <a
+                        href="{{ route('projects.create') }}"
+                        class="ui-btn ui-btn-primary"
+                    >
+                        Crear primer proyecto
+                    </a>
+
+                </div>
+
+            @endif
+
+        </section>
+
+
+        {{-- PAGINATION --}}
+        @if($projects->hasPages())
+
+            <div class="projects-pagination">
+                {{ $projects->links() }}
+            </div>
+
+        @endif
+
+    </div>
+
 @endsection
